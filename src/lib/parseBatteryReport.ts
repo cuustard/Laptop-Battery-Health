@@ -53,10 +53,16 @@ function parseInstalledBatteries(doc: Document): Battery[] {
 
   if (!section) return [];
 
-  const table = section.nextElementSibling as HTMLTableElement | null;
-  const rows = table?.querySelectorAll("tr");
+  // 🔥 Find the FIRST table AFTER the section (not just nextElementSibling)
+  let next: Element | null = section.nextElementSibling;
 
-  if (!rows) return [];
+  while (next && next.tagName !== "TABLE") {
+    next = next.nextElementSibling;
+  }
+
+  if (!next) return [];
+
+  const rows = next.querySelectorAll("tr");
 
   const battery: Battery = {};
 
@@ -64,21 +70,36 @@ function parseInstalledBatteries(doc: Document): Battery[] {
     const cells = row.querySelectorAll("td");
     if (cells.length !== 2) return;
 
-    const key = cells[0].textContent?.trim();
-    const value = cells[1].textContent?.trim();
+    const key = cells[0].textContent?.trim() || "";
+    const value = cells[1].textContent?.trim() || "";
+    const normalizedKey = key.toLowerCase();
 
-    if (!key) return;
-
-    if (key.includes("DESIGN CAPACITY")) {
+    if (normalizedKey.includes("design capacity")) {
       battery.designCapacity_mWh = parseNumber(value);
     }
-
-    if (key.includes("FULL CHARGE CAPACITY")) {
+    
+    if (normalizedKey.includes("full charge capacity")) {
       battery.fullChargeCapacity_mWh = parseNumber(value);
     }
-
-    if (key.includes("CYCLE COUNT")) {
-      battery.cycleCount = value ? parseInt(value) : null;
+    
+    if (normalizedKey.includes("cycle count")) {
+      battery.cycleCount = value ? parseInt(value, 10) : null;
+    }
+    
+    if (normalizedKey.includes("name")) {
+      battery.name = value;
+    }
+    
+    if (normalizedKey.includes("manufacturer")) {
+      battery.manufacturer = value;
+    }
+    
+    if (normalizedKey.includes("serial number")) {
+      battery.serialNumber = value;
+    }
+    
+    if (normalizedKey.includes("chemistry")) {
+      battery.chemistry = value;
     }
   });
 

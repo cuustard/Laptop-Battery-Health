@@ -1,11 +1,23 @@
 import { parseBatteryReportHtml } from "./lib/parseBatteryReport";
 
 async function loadTest() {
-  const res = await fetch("/battery-report.html");
-  const html = await res.text();
+  console.log("Button clicked");
 
-  const data = parseBatteryReportHtml(html);
-  console.log(data);
+  try {
+    const res = await fetch("/battery-report.html");
+    console.log("Fetch response:", res.status, res.statusText);
+
+    const html = await res.text();
+    console.log("HTML length:", html.length);
+
+    const data = parseBatteryReportHtml(html);
+    console.log("Parsed data:", data);
+
+    alert("Parser ran. Check console.");
+  } catch (error) {
+    console.error("loadTest failed:", error);
+    alert("Something failed. Check console.");
+  }
 }
 
 function App() {
