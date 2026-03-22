@@ -1108,8 +1108,89 @@ function App() {
                         <section style={{ marginTop: 20 }}>
                             <SectionCard
                                 title="Recent usage"
-                                description="Shows how your battery level changed during recent activity sessions. Each point represents a recorded moment when your device was active, suspended, or in connected standby. level over recent recorded usage sessions."
+                                description="Shows how your battery level changed during recent activity sessions. Each point represents a recorded moment when your device was active, suspended, or in connected standby."
                             >
+                                <div
+                                    style={{
+                                        marginBottom: 20,
+                                        padding: 16,
+                                        background: "#f8fafc",
+                                        border: "1px solid #eaecf0",
+                                        borderRadius: 14,
+                                        textAlign: "left",
+                                    }}
+                                >
+                                    <p
+                                        style={{
+                                            margin: "0 0 12px",
+                                            fontSize: 14,
+                                            color: "#475467",
+                                            lineHeight: 1.7,
+                                        }}
+                                    >
+                                        This chart shows short-term battery
+                                        behavior over recent sessions, not
+                                        long-term health.
+                                    </p>
+
+                                    <ul
+                                        style={{
+                                            margin: 0,
+                                            paddingLeft: 20,
+                                            color: "#475467",
+                                            lineHeight: 1.7,
+                                        }}
+                                    >
+                                        <li style={{ marginBottom: 8 }}>
+                                            <strong
+                                                style={{ color: "#101828" }}
+                                            >
+                                                Battery level (%)
+                                            </strong>{" "}
+                                            shows how charge changes over time.
+                                        </li>
+                                        <li style={{ marginBottom: 8 }}>
+                                            <strong
+                                                style={{ color: "#101828" }}
+                                            >
+                                                Steep drops
+                                            </strong>{" "}
+                                            indicate heavy usage or
+                                            power-intensive activity.
+                                        </li>
+                                        <li style={{ marginBottom: 8 }}>
+                                            <strong
+                                                style={{ color: "#101828" }}
+                                            >
+                                                Flat sections
+                                            </strong>{" "}
+                                            often mean the device was idle or in
+                                            standby.
+                                        </li>
+                                        <li>
+                                            <strong
+                                                style={{ color: "#101828" }}
+                                            >
+                                                Charging periods
+                                            </strong>{" "}
+                                            can be seen where the line
+                                            increases.
+                                        </li>
+                                    </ul>
+
+                                    <p
+                                        style={{
+                                            margin: "12px 0 0",
+                                            fontSize: 13,
+                                            color: "#667085",
+                                            lineHeight: 1.6,
+                                        }}
+                                    >
+                                        Data is based on recent system activity
+                                        logs and may not be continuous.
+                                    </p>
+                                </div>
+
                                 <RecentUsageChart data={data.recentUsage} />
                             </SectionCard>
                         </section>
