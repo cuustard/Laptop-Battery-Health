@@ -1,6 +1,10 @@
 import type { BatteryReport } from "../types/battery";
 import type { Insight } from "../types/battery";
-import { calculateHealthPercent, calculateWearPercent } from "./batteryMetrics";
+import {
+    calculateHealthPercent,
+    calculateWearPercent,
+    calculateRecentDrainRate,
+} from "./batteryMetrics";
 
 export function getCapacityTrend(
     history: { fullChargeCapacity_mWh?: number }[]
@@ -43,6 +47,8 @@ export function generateInsights(data: BatteryReport): Insight[] {
     );
 
     const trend = getCapacityTrend(data.capacityHistory);
+
+    const drain = calculateRecentDrainRate(data.recentUsage);
 
     if (health !== null) {
         if (health >= 90) {
@@ -116,6 +122,42 @@ export function generateInsights(data: BatteryReport): Insight[] {
                 severity: "good",
             });
         }
+    }
+
+    if (drain.averagePercentPerHour !== null) {
+        const rate = drain.averagePercentPerHour;
+
+        let severity: "good" | "neutral" | "warning" = "neutral";
+        let title = "Recent battery drain looks moderate";
+        let interpretation =
+            "Recent discharge appears to be within a typical everyday range.";
+
+        if (rate < 8) {
+            severity = "good";
+            title = "Recent battery drain looks light";
+            interpretation =
+                "Recent battery-powered usage appears fairly efficient or low intensity.";
+        } else if (rate >= 15) {
+            severity = "warning";
+            title = "Heavy recent battery drain detected";
+            interpretation =
+                "Recent battery-powered sessions show faster-than-usual discharge, which can happen during gaming, video calls, high brightness, or other demanding workloads.";
+        }
+
+        const mWhText =
+            drain.averageMWhPerHour !== null
+                ? ` (~${Math.round(
+                      drain.averageMWhPerHour
+                  ).toLocaleString()} mWh per hour)`
+                : "";
+
+        insights.push({
+            title,
+            description: `During recent battery-powered periods, the battery drained at about ${rate.toFixed(
+                1
+            )}% per hour${mWhText}. ${interpretation}`,
+            severity,
+        });
     }
 
     return insights;
