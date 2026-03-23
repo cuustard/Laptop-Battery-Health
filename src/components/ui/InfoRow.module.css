@@ -1,0 +1,26 @@
+.row {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eaecf0;
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #475467;
+}
+
+.value {
+  font-size: 15px;
+  color: #101828;
+  word-break: break-word;
+}
+
+@media (max-width: 640px) {
+  .row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}

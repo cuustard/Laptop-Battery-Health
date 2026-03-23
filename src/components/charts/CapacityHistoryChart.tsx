@@ -12,8 +12,19 @@ import type {
     ValueType,
     NameType,
 } from "recharts/types/component/DefaultTooltipContent";
+import styles from "./CapacityHistoryChart.module.css";
 
 type ChartMode = "health" | "capacity-zoomed" | "capacity-full";
+
+type CapacityHistoryEntry = {
+    date: string;
+    fullChargeCapacity_mWh?: number;
+    designCapacity_mWh?: number;
+};
+
+type CapacityHistoryChartProps = {
+    data: CapacityHistoryEntry[];
+};
 
 function formatChartDate(dateString: string): string {
     const date = new Date(dateString);
@@ -26,20 +37,12 @@ function formatChartDate(dateString: string): string {
     });
 }
 
-export function CapacityHistoryChart({
-    data,
-}: {
-    data: {
-        date: string;
-        fullChargeCapacity_mWh?: number;
-        designCapacity_mWh?: number;
-    }[];
-}) {
+export function CapacityHistoryChart({ data }: CapacityHistoryChartProps) {
     const [mode, setMode] = useState<ChartMode>("health");
 
     if (data.length === 0) {
         return (
-            <p style={{ margin: 0, fontSize: 15, color: "#475467" }}>
+            <p className={styles.emptyState}>
                 No capacity history found in this report.
             </p>
         );
@@ -86,7 +89,7 @@ export function CapacityHistoryChart({
         return (
             <div>
                 <ChartModeButtons mode={mode} setMode={setMode} />
-                <p style={{ margin: 0, fontSize: 15, color: "#475467" }}>
+                <p className={styles.emptyState}>
                     No valid battery health history found in this report.
                 </p>
             </div>
@@ -100,7 +103,7 @@ export function CapacityHistoryChart({
         return (
             <div>
                 <ChartModeButtons mode={mode} setMode={setMode} />
-                <p style={{ margin: 0, fontSize: 15, color: "#475467" }}>
+                <p className={styles.emptyState}>
                     No valid capacity history found in this report.
                 </p>
             </div>
@@ -138,13 +141,7 @@ export function CapacityHistoryChart({
         <div>
             <ChartModeButtons mode={mode} setMode={setMode} />
 
-            <div
-                style={{
-                    marginBottom: 12,
-                    fontSize: 14,
-                    color: "#667085",
-                }}
-            >
+            <div className={styles.chartDescription}>
                 {mode === "health" &&
                     "Shows battery health as a percentage of design capacity. Best for understanding actual battery condition."}
                 {mode === "capacity-zoomed" &&
@@ -153,7 +150,7 @@ export function CapacityHistoryChart({
                     "Uses a full scale from zero to avoid exaggerating small changes."}
             </div>
 
-            <div style={{ width: "100%", height: 360 }}>
+            <div className={styles.chartFrame}>
                 <ResponsiveContainer>
                     <LineChart
                         key={mode}
@@ -215,8 +212,11 @@ export function CapacityHistoryChart({
 
                         <Tooltip
                             labelFormatter={(label) => `Date: ${String(label)}`}
-                            formatter={(value: ValueType, name: NameType) => {
-                                const safeName = String(name);
+                            formatter={(
+                                value: ValueType | undefined,
+                                name: NameType | undefined
+                            ) => {
+                                const safeName = String(name ?? "Unknown");
 
                                 if (typeof value !== "number") {
                                     return [String(value ?? "N/A"), safeName];
@@ -275,22 +275,14 @@ export function CapacityHistoryChart({
     );
 }
 
-function ChartModeButtons({
-    mode,
-    setMode,
-}: {
+type ChartModeButtonsProps = {
     mode: ChartMode;
-    setMode: React.Dispatch<React.SetStateAction<ChartMode>>;
-}) {
+    setMode: (mode: ChartMode) => void;
+};
+
+function ChartModeButtons({ mode, setMode }: ChartModeButtonsProps) {
     return (
-        <div
-            style={{
-                display: "flex",
-                gap: 8,
-                flexWrap: "wrap",
-                marginBottom: 16,
-            }}
-        >
+        <div className={styles.modeButtons}>
             <ChartToggleButton
                 active={mode === "health"}
                 onClick={() => setMode("health")}
@@ -310,30 +302,21 @@ function ChartModeButtons({
     );
 }
 
-function ChartToggleButton({
-    label,
-    active,
-    onClick,
-}: {
+type ChartToggleButtonProps = {
     label: string;
     active: boolean;
     onClick: () => void;
-}) {
+};
+
+function ChartToggleButton({ label, active, onClick }: ChartToggleButtonProps) {
     return (
         <button
             type="button"
             onClick={onClick}
             aria-pressed={active}
-            style={{
-                border: active ? "1px solid #111827" : "1px solid #d0d5dd",
-                background: active ? "#111827" : "#ffffff",
-                color: active ? "#ffffff" : "#344054",
-                borderRadius: 10,
-                padding: "8px 12px",
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: "pointer",
-            }}
+            className={`${styles.toggleButton} ${
+                active ? styles.toggleButtonActive : ""
+            }`.trim()}
         >
             {label}
         </button>

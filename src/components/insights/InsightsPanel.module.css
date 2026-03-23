@@ -1,0 +1,21 @@
+.grid {
+  display: grid;
+  gap: 12px;
+}
+
+.card {
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.description {
+  font-size: 14px;
+  line-height: 1.6;
+}
