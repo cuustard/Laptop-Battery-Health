@@ -12,7 +12,7 @@ import {
 import { generateInsights } from "./lib/batteryInsights";
 import { formatMWh, formatPercent } from "./lib/formatters";
 
-import { StatCard } from "../src/components/ui/statCard";
+import { StatCard } from "../src/components/ui/StatCard";
 import { SectionCard } from "../src/components/ui/SectionCard";
 import { InfoRow } from "../src/components/ui/InfoRow";
 import { CapacityHistoryChart } from "../src/components/charts/CapacityHistoryChart";
@@ -22,9 +22,11 @@ import { InsightsPanel } from "../src/components/insights/InsightsPanel";
 function App() {
     const [data, setData] = useState<BatteryReport | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     async function loadTest() {
         setError(null);
+        setIsLoading(true);
 
         try {
             const res = await fetch("/battery-report.html");
@@ -41,7 +43,10 @@ function App() {
             setData(parsed);
         } catch (err) {
             console.error(err);
+            setData(null);
             setError(err instanceof Error ? err.message : "Unknown error");
+        } finally {
+            setIsLoading(false);
         }
     }
 
@@ -57,6 +62,18 @@ function App() {
     const healthLabel = getHealthLabel(healthPercent);
     const insights = data ? generateInsights(data) : [];
 
+    const hasCapacityHistory = (data?.capacityHistory.length ?? 0) > 0;
+    const hasRecentUsage = (data?.recentUsage.length ?? 0) > 0;
+    const hasMetadata =
+        !!data &&
+        Boolean(
+            data.metadata.computerName ||
+                data.metadata.systemProductName ||
+                data.metadata.bios ||
+                data.metadata.osBuild ||
+                data.metadata.reportTime
+        );
+
     return (
         <div className="app-shell">
             <main className="app-main">
@@ -69,58 +86,111 @@ function App() {
                         </p>
                     </div>
 
-                    <button className="app-button" onClick={loadTest}>
-                        Load Battery Report
+                    <button
+                        className="app-button"
+                        onClick={loadTest}
+                        disabled={isLoading}
+                    >
+                        {isLoading ? "Loading..." : "Load Battery Report"}
                     </button>
                 </header>
 
                 {error && (
-                    <div role="alert" className="app-alert">
-                        {error}
-                    </div>
+                    <section
+                        role="alert"
+                        className="status-card status-card--error"
+                    >
+                        <h2 className="status-card__title">
+                            Could not load battery report
+                        </h2>
+                        <p className="status-card__text">{error}</p>
+                    </section>
+                )}
+
+                {!data && !error && !isLoading && (
+                    <section className="status-card">
+                        <h2 className="status-card__title">
+                            No battery report loaded
+                        </h2>
+                        <p className="status-card__text">
+                            Click <strong>Load Battery Report</strong> to parse
+                            your Windows battery report and view battery health,
+                            capacity history, recent usage, and insights.
+                        </p>
+                    </section>
+                )}
+
+                {!data && isLoading && (
+                    <section className="status-card">
+                        <h2 className="status-card__title">
+                            Loading battery report
+                        </h2>
+                        <p className="status-card__text">
+                            Fetching and parsing the report now.
+                        </p>
+                    </section>
                 )}
 
                 {data && (
                     <>
-                        <section
-                            aria-label="Battery overview"
-                            className="stats-grid"
-                        >
-                            <StatCard
-                                label="Battery health"
-                                value={formatPercent(healthPercent)}
-                                helper={healthLabel}
-                            />
-                            <StatCard
-                                label="Battery wear"
-                                value={formatPercent(wearPercent)}
-                            />
-                            <StatCard
-                                label="Full charge capacity"
-                                value={formatMWh(
-                                    battery?.fullChargeCapacity_mWh
-                                )}
-                                helper={`Design: ${formatMWh(
-                                    battery?.designCapacity_mWh
-                                )}`}
-                            />
-                            <StatCard
-                                label="Cycle count"
-                                value={
-                                    battery?.cycleCount !== undefined &&
-                                    battery?.cycleCount !== null
-                                        ? String(battery.cycleCount)
-                                        : "N/A"
-                                }
-                            />
-                        </section>
+                        {battery ? (
+                            <section
+                                aria-label="Battery overview"
+                                className="stats-grid"
+                            >
+                                <StatCard
+                                    label="Battery health"
+                                    value={formatPercent(healthPercent)}
+                                    helper={healthLabel}
+                                />
+                                <StatCard
+                                    label="Battery wear"
+                                    value={formatPercent(wearPercent)}
+                                />
+                                <StatCard
+                                    label="Full charge capacity"
+                                    value={formatMWh(
+                                        battery.fullChargeCapacity_mWh
+                                    )}
+                                    helper={`Design: ${formatMWh(
+                                        battery.designCapacity_mWh
+                                    )}`}
+                                />
+                                <StatCard
+                                    label="Cycle count"
+                                    value={
+                                        battery.cycleCount !== undefined &&
+                                        battery.cycleCount !== null
+                                            ? String(battery.cycleCount)
+                                            : "N/A"
+                                    }
+                                />
+                            </section>
+                        ) : (
+                            <section className="status-card status-card--warning">
+                                <h2 className="status-card__title">
+                                    No battery found in this report
+                                </h2>
+                                <p className="status-card__text">
+                                    The report loaded, but Windows did not
+                                    include any installed battery entries.
+                                </p>
+                            </section>
+                        )}
 
                         <section className="section-spacing">
                             <SectionCard
                                 title="Insights"
                                 description="Plain-English analysis based on the current battery report and capacity history."
                             >
-                                <InsightsPanel insights={insights} />
+                                {insights.length > 0 ? (
+                                    <InsightsPanel insights={insights} />
+                                ) : (
+                                    <p className="app-empty-state">
+                                        No insights could be generated from this
+                                        report.
+                                    </p>
+                                )}
                             </SectionCard>
                         </section>
 
@@ -129,28 +199,46 @@ function App() {
                                 title="System information"
                                 description="Basic metadata extracted from the battery report."
                             >
-                                <InfoRow
-                                    label="Computer"
-                                    value={data.metadata.computerName ?? "N/A"}
-                                />
-                                <InfoRow
-                                    label="System product"
-                                    value={
-                                        data.metadata.systemProductName ?? "N/A"
-                                    }
-                                />
-                                <InfoRow
-                                    label="BIOS"
-                                    value={data.metadata.bios ?? "N/A"}
-                                />
-                                <InfoRow
-                                    label="OS build"
-                                    value={data.metadata.osBuild ?? "N/A"}
-                                />
-                                <InfoRow
-                                    label="Report time"
-                                    value={data.metadata.reportTime ?? "N/A"}
-                                />
+                                {hasMetadata ? (
+                                    <>
+                                        <InfoRow
+                                            label="Computer"
+                                            value={
+                                                data.metadata.computerName ??
+                                                "N/A"
+                                            }
+                                        />
+                                        <InfoRow
+                                            label="System product"
+                                            value={
+                                                data.metadata
+                                                    .systemProductName ?? "N/A"
+                                            }
+                                        />
+                                        <InfoRow
+                                            label="BIOS"
+                                            value={data.metadata.bios ?? "N/A"}
+                                        />
+                                        <InfoRow
+                                            label="OS build"
+                                            value={
+                                                data.metadata.osBuild ?? "N/A"
+                                            }
+                                        />
+                                        <InfoRow
+                                            label="Report time"
+                                            value={
+                                                data.metadata.reportTime ??
+                                                "N/A"
+                                            }
+                                        />
+                                    </>
+                                ) : (
+                                    <p className="app-empty-state">
+                                        No system metadata was found in this
+                                        report.
+                                    </p>
+                                )}
                             </SectionCard>
 
                             <SectionCard
@@ -194,7 +282,8 @@ function App() {
                                     </>
                                 ) : (
                                     <p className="app-empty-state">
-                                        No battery detected in this report.
+                                        No battery details were found in this
+                                        report.
                                     </p>
                                 )}
                             </SectionCard>
@@ -205,9 +294,16 @@ function App() {
                                 title="Capacity history"
                                 description="How full charge capacity compares with design capacity over time."
                             >
-                                <CapacityHistoryChart
-                                    data={data.capacityHistory}
-                                />
+                                {hasCapacityHistory ? (
+                                    <CapacityHistoryChart
+                                        data={data.capacityHistory}
+                                    />
+                                ) : (
+                                    <p className="app-empty-state">
+                                        No capacity history was found in this
+                                        report.
+                                    </p>
+                                )}
                             </SectionCard>
                         </div>
 
@@ -251,7 +347,14 @@ function App() {
                                     </p>
                                 </div>
 
-                                <RecentUsageChart data={data.recentUsage} />
+                                {hasRecentUsage ? (
+                                    <RecentUsageChart data={data.recentUsage} />
+                                ) : (
+                                    <p className="app-empty-state">
+                                        No recent usage entries were found in
+                                        this report.
+                                    </p>
+                                )}
                             </SectionCard>
                         </section>
                     </>
