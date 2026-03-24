@@ -12,12 +12,13 @@ import {
 import { generateInsights } from "./lib/batteryInsights";
 import { formatMWh, formatPercent } from "./lib/formatters";
 
-import { StatCard } from "../src/components/ui/StatCard";
-import { SectionCard } from "../src/components/ui/SectionCard";
-import { InfoRow } from "../src/components/ui/InfoRow";
-import { CapacityHistoryChart } from "../src/components/charts/CapacityHistoryChart";
-import { RecentUsageChart } from "../src/components/charts/RecentUsageChart";
-import { InsightsPanel } from "../src/components/insights/InsightsPanel";
+import { StatCard } from "./components/ui/StatCard";
+import { SectionCard } from "./components/ui/SectionCard";
+import { InfoRow } from "./components/ui/InfoRow";
+import { CapacityHistoryChart } from "./components/charts/CapacityHistoryChart";
+import { RecentUsageChart } from "./components/charts/RecentUsageChart";
+import { InsightsPanel } from "./components/insights/InsightsPanel";
+import { invoke } from "@tauri-apps/api/core";
 
 function App() {
     const [data, setData] = useState<BatteryReport | null>(null);
@@ -29,14 +30,7 @@ function App() {
         setIsLoading(true);
 
         try {
-            const res = await fetch("/battery-report.html");
-            if (!res.ok) {
-                throw new Error(
-                    `Failed to load report: ${res.status} ${res.statusText}`
-                );
-            }
-
-            const html = await res.text();
+            const html = await invoke<string>("get_battery_report_html");
             const parsed = parseBatteryReportHtml(html);
 
             console.log("Parsed data:", parsed);
@@ -44,7 +38,7 @@ function App() {
         } catch (err) {
             console.error(err);
             setData(null);
-            setError(err instanceof Error ? err.message : "Unknown error");
+            setError(err instanceof Error ? err.message : String(err));
         } finally {
             setIsLoading(false);
         }
