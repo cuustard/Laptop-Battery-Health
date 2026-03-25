@@ -126,7 +126,7 @@ function App() {
                 )}
 
                 {data && (
-                    <>
+                    <div className="dashboard-stack">
                         {battery ? (
                             <section
                                 aria-label="Battery overview"
@@ -172,21 +172,19 @@ function App() {
                             </section>
                         )}
 
-                        <section className="section-spacing">
-                            <SectionCard
-                                title="Insights"
-                                description="Plain-English analysis based on the current battery report and capacity history."
-                            >
-                                {insights.length > 0 ? (
-                                    <InsightsPanel insights={insights} />
-                                ) : (
-                                    <p className="app-empty-state">
-                                        No insights could be generated from this
-                                        report.
-                                    </p>
-                                )}
-                            </SectionCard>
-                        </section>
+                        <SectionCard
+                            title="Insights"
+                            description="Plain-English analysis based on the current battery report and capacity history."
+                        >
+                            {insights.length > 0 ? (
+                                <InsightsPanel insights={insights} />
+                            ) : (
+                                <p className="app-empty-state">
+                                    No insights could be generated from this
+                                    report.
+                                </p>
+                            )}
+                        </SectionCard>
 
                         <div className="details-grid">
                             <SectionCard
@@ -283,75 +281,67 @@ function App() {
                             </SectionCard>
                         </div>
 
-                        <div className="section-spacing">
-                            <SectionCard
-                                title="Capacity history"
-                                description="How full charge capacity compares with design capacity over time."
-                            >
-                                {hasCapacityHistory ? (
-                                    <CapacityHistoryChart
-                                        data={data.capacityHistory}
-                                    />
-                                ) : (
-                                    <p className="app-empty-state">
-                                        No capacity history was found in this
-                                        report.
-                                    </p>
-                                )}
-                            </SectionCard>
-                        </div>
+                        <SectionCard
+                            title="Capacity history"
+                            description="How full charge capacity compares with design capacity over time."
+                        >
+                            {hasCapacityHistory ? (
+                                <CapacityHistoryChart
+                                    data={data.capacityHistory}
+                                />
+                            ) : (
+                                <p className="app-empty-state">
+                                    No capacity history was found in this
+                                    report.
+                                </p>
+                            )}
+                        </SectionCard>
 
-                        <section className="section-spacing">
-                            <SectionCard
-                                title="Recent usage"
-                                description="Shows how your battery level changed during recent activity sessions. Each point represents a recorded moment when your device was active, suspended, or in connected standby."
-                            >
-                                <div className="usage-note">
-                                    <p className="usage-note__intro">
-                                        This chart shows short-term battery
-                                        behavior over recent sessions, not
-                                        long-term health.
-                                    </p>
+                        <SectionCard
+                            title="Recent usage"
+                            description="Shows how your battery level changed during recent activity sessions. Each point represents a recorded moment when your device was active, suspended, or in connected standby."
+                        >
+                            <div className="usage-note">
+                                <p className="usage-note__intro">
+                                    This chart shows short-term battery behavior
+                                    over recent sessions, not long-term health.
+                                </p>
 
-                                    <ul className="usage-note__list">
-                                        <li>
-                                            <strong>Battery level (%)</strong>{" "}
-                                            shows how charge changes over time.
-                                        </li>
-                                        <li>
-                                            <strong>Steep drops</strong>{" "}
-                                            indicate heavy usage or
-                                            power-intensive activity.
-                                        </li>
-                                        <li>
-                                            <strong>Flat sections</strong> often
-                                            mean the device was idle or in
-                                            standby.
-                                        </li>
-                                        <li>
-                                            <strong>Charging periods</strong>{" "}
-                                            can be seen where the line
-                                            increases.
-                                        </li>
-                                    </ul>
+                                <ul className="usage-note__list">
+                                    <li>
+                                        <strong>Battery level (%)</strong> shows
+                                        how charge changes over time.
+                                    </li>
+                                    <li>
+                                        <strong>Steep drops</strong> indicate
+                                        heavy usage or power-intensive activity.
+                                    </li>
+                                    <li>
+                                        <strong>Flat sections</strong> often
+                                        mean the device was idle or in standby.
+                                    </li>
+                                    <li>
+                                        <strong>Charging periods</strong> can be
+                                        seen where the line increases.
+                                    </li>
+                                </ul>
 
-                                    <p className="usage-note__footer">
-                                        Data is based on recent system activity
-                                        logs and may not be continuous.
-                                    </p>
-                                </div>
+                                <p className="usage-note__footer">
+                                    Data is based on recent system activity logs
+                                    and may not be continuous.
+                                </p>
+                            </div>
 
-                                {hasRecentUsage ? (
-                                    <RecentUsageChart data={data.recentUsage} />
-                                ) : (
-                                    <p className="app-empty-state">
-                                        No recent usage entries were found in
-                                        this report.
-                                    </p>
-                                )}
-                            </SectionCard>
-                        </section>
-                    </>
+                            {hasRecentUsage ? (
+                                <RecentUsageChart data={data.recentUsage} />
+                            ) : (
+                                <p className="app-empty-state">
+                                    No recent usage entries were found in this
+                                    report.
+                                </p>
+                            )}
+                        </SectionCard>
+                    </div>
                 )}
             </main>
         </div>

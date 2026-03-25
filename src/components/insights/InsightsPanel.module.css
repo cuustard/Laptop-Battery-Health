@@ -1,21 +1,22 @@
 .grid {
-  display: grid;
-  gap: 12px;
+    display: grid;
+    gap: 14px;
 }
 
 .card {
-  border: 1px solid transparent;
-  border-radius: 14px;
-  padding: 16px;
+    border: 1px solid transparent;
+    border-radius: 14px;
+    padding: 16px 18px;
 }
 
 .title {
-  font-size: 16px;
-  font-weight: 700;
-  margin-bottom: 6px;
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    line-height: 1.4;
 }
 
 .description {
-  font-size: 14px;
-  line-height: 1.6;
+    font-size: 14px;
+    line-height: 1.7;
 }
