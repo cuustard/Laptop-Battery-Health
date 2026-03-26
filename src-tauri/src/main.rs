@@ -29,9 +29,16 @@ fn get_battery_report_html() -> Result<String, String> {
 }
 
 #[tauri::command]
-fn save_battery_snapshot(html: String) -> Result<String, String> {
-    let mut path: PathBuf = tauri::api::path::app_data_dir(&tauri::Config::default())
-        .ok_or("Could not get app data dir")?;
+fn save_battery_snapshot(
+    app: tauri::AppHandle,
+    html: String
+) -> Result<String, String> {
+    use tauri::Manager;
+
+    let mut path: PathBuf = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {e}"))?;
 
     fs::create_dir_all(&path)
         .map_err(|e| format!("Failed to create dir: {e}"))?;
