@@ -4,6 +4,7 @@ use std::{
     env,
     fs,
     process::Command,
+    path::PathBuf,
 };
 
 #[tauri::command]
@@ -27,9 +28,30 @@ fn get_battery_report_html() -> Result<String, String> {
         .map_err(|e| format!("Failed to read generated report: {e}"))
 }
 
+#[tauri::command]
+fn save_battery_snapshot(html: String) -> Result<String, String> {
+    let mut path: PathBuf = tauri::api::path::app_data_dir(&tauri::Config::default())
+        .ok_or("Could not get app data dir")?;
+
+    fs::create_dir_all(&path)
+        .map_err(|e| format!("Failed to create dir: {e}"))?;
+
+    let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
+
+    path.push(format!("battery_snapshot_{timestamp}.html"));
+
+    fs::write(&path, html)
+        .map_err(|e| format!("Failed to save snapshot: {e}"))?;
+
+    Ok(path.to_string_lossy().to_string())
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_battery_report_html])
+        .invoke_handler(tauri::generate_handler![
+            get_battery_report_html,
+            save_battery_snapshot
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 import type { BatteryReport } from "./types/battery";
+import type { BatterySnapshot } from "./types/history";
 
 import { parseBatteryReportHtml } from "./lib/parseBatteryReport";
 import {
@@ -11,6 +12,7 @@ import {
 } from "./lib/batteryMetrics";
 import { generateInsights } from "./lib/batteryInsights";
 import { formatMWh, formatPercent } from "./lib/formatters";
+import { compareHistory, createSnapshot, formatDelta } from "./lib/history";
 
 import { StatCard } from "./components/ui/StatCard";
 import { SectionCard } from "./components/ui/SectionCard";
@@ -22,8 +24,24 @@ import { invoke } from "@tauri-apps/api/core";
 
 function App() {
     const [data, setData] = useState<BatteryReport | null>(null);
+    const [history, setHistory] = useState<BatterySnapshot[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+
+    async function refreshHistory() {
+        try {
+            const loaded = await invoke<BatterySnapshot[]>(
+                "load_battery_history"
+            );
+            setHistory(loaded);
+        } catch (err) {
+            console.error("Failed to load history", err);
+        }
+    }
+
+    useEffect(() => {
+        void refreshHistory();
+    }, []);
 
     async function loadTest() {
         setError(null);
@@ -33,8 +51,13 @@ function App() {
             const html = await invoke<string>("get_battery_report_html");
             const parsed = parseBatteryReportHtml(html);
 
-            console.log("Parsed data:", parsed);
             setData(parsed);
+
+            const snapshot = createSnapshot(parsed);
+            if (snapshot) {
+                await invoke("save_battery_snapshot", { snapshot });
+                await refreshHistory();
+            }
         } catch (err) {
             console.error(err);
             setData(null);
@@ -67,6 +90,8 @@ function App() {
                 data.metadata.osBuild ||
                 data.metadata.reportTime
         );
+
+    const comparison = useMemo(() => compareHistory(history), [history]);
 
     return (
         <div className="app-shell">
@@ -171,6 +196,55 @@ function App() {
                                 </p>
                             </section>
                         )}
+
+                        <SectionCard
+                            title="Since last scan"
+                            description="Changes compared with the previous saved battery snapshot."
+                        >
+                            {comparison.previous && comparison.latest ? (
+                                <div className="details-grid">
+                                    <div>
+                                        <InfoRow
+                                            label="Health change"
+                                            value={formatDelta(
+                                                comparison.healthDelta,
+                                                "%"
+                                            )}
+                                        />
+                                        <InfoRow
+                                            label="Wear change"
+                                            value={formatDelta(
+                                                comparison.wearDelta,
+                                                "%"
+                                            )}
+                                        />
+                                    </div>
+                                    <div>
+                                        <InfoRow
+                                            label="Full charge change"
+                                            value={formatDelta(
+                                                comparison.fullChargeDelta_mWh,
+                                                " mWh",
+                                                0
+                                            )}
+                                        />
+                                        <InfoRow
+                                            label="Cycle count change"
+                                            value={formatDelta(
+                                                comparison.cycleCountDelta,
+                                                "",
+                                                0
+                                            )}
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="app-empty-state">
+                                    Load at least two reports on this device to
+                                    see change over time.
+                                </p>
+                            )}
+                        </SectionCard>
 
                         <SectionCard
                             title="Insights"
