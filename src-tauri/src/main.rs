@@ -1,11 +1,32 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{
-    env,
-    fs,
-    process::Command,
-    path::PathBuf,
-};
+use serde::{Deserialize, Serialize};
+use std::{env, fs, path::PathBuf, process::Command};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BatterySnapshot {
+    captured_at: String,
+    health_percent: Option<f64>,
+    wear_percent: Option<f64>,
+    #[serde(rename = "fullChargeCapacity_mWh")]
+    full_charge_capacity_m_wh: Option<i64>,
+    #[serde(rename = "designCapacity_mWh")]
+    design_capacity_m_wh: Option<i64>,
+    cycle_count: Option<i64>,
+}
+
+fn history_file_path() -> Result<PathBuf, String> {
+    let base = env::var("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .map_err(|e| format!("Failed to resolve LOCALAPPDATA: {e}"))?;
+
+    let app_dir = base.join("BatteryDashboard");
+    fs::create_dir_all(&app_dir)
+        .map_err(|e| format!("Failed to create app data directory: {e}"))?;
+
+    Ok(app_dir.join("battery-history.json"))
+}
 
 #[tauri::command]
 fn get_battery_report_html() -> Result<String, String> {
@@ -29,34 +50,57 @@ fn get_battery_report_html() -> Result<String, String> {
 }
 
 #[tauri::command]
-fn save_battery_snapshot(
-    app: tauri::AppHandle,
-    html: String
-) -> Result<String, String> {
-    use tauri::Manager;
+fn load_battery_history() -> Result<Vec<BatterySnapshot>, String> {
+    let path = history_file_path()?;
 
-    let mut path: PathBuf = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get app data dir: {e}"))?;
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
 
-    fs::create_dir_all(&path)
-        .map_err(|e| format!("Failed to create dir: {e}"))?;
+    let contents =
+        fs::read_to_string(&path).map_err(|e| format!("Failed to read history: {e}"))?;
 
-    let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
+    if contents.trim().is_empty() {
+        return Ok(Vec::new());
+    }
 
-    path.push(format!("battery_snapshot_{timestamp}.html"));
+    serde_json::from_str(&contents)
+        .map_err(|e| format!("Failed to parse history JSON: {e}"))
+}
 
-    fs::write(&path, html)
-        .map_err(|e| format!("Failed to save snapshot: {e}"))?;
+#[tauri::command]
+fn save_battery_snapshot(snapshot: BatterySnapshot) -> Result<(), String> {
+    let path = history_file_path()?;
 
-    Ok(path.to_string_lossy().to_string())
+    let mut history = if path.exists() {
+        let contents = fs::read_to_string(&path)
+            .map_err(|e| format!("Failed to read history for update: {e}"))?;
+
+        if contents.trim().is_empty() {
+            Vec::new()
+        } else {
+            serde_json::from_str::<Vec<BatterySnapshot>>(&contents)
+                .map_err(|e| format!("Failed to parse history for update: {e}"))?
+        }
+    } else {
+        Vec::new()
+    };
+
+    history.push(snapshot);
+
+    let json = serde_json::to_string_pretty(&history)
+        .map_err(|e| format!("Failed to serialize history: {e}"))?;
+
+    fs::write(&path, json).map_err(|e| format!("Failed to write history: {e}"))?;
+
+    Ok(())
 }
 
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             get_battery_report_html,
+            load_battery_history,
             save_battery_snapshot
         ])
         .run(tauri::generate_context!())
