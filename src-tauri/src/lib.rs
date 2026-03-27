@@ -14,6 +14,14 @@ struct BatterySnapshot {
     cycle_count: Option<i64>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveSnapshotResult {
+    saved: bool,
+    reason: String,
+    snapshot_count: usize,
+}
+
 fn history_file_path() -> Result<PathBuf, String> {
     let base = env::var("LOCALAPPDATA")
         .map(PathBuf::from)
@@ -24,6 +32,46 @@ fn history_file_path() -> Result<PathBuf, String> {
         .map_err(|e| format!("Failed to create app data directory: {e}"))?;
 
     Ok(app_dir.join("battery-history.json"))
+}
+
+fn read_history_from_disk(path: &PathBuf) -> Result<Vec<BatterySnapshot>, String> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let contents =
+        fs::read_to_string(path).map_err(|e| format!("Failed to read history: {e}"))?;
+
+    if contents.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+
+    serde_json::from_str(&contents).map_err(|e| format!("Failed to parse history JSON: {e}"))
+}
+
+fn write_history_to_disk(path: &PathBuf, history: &[BatterySnapshot]) -> Result<(), String> {
+    let json = serde_json::to_string_pretty(history)
+        .map_err(|e| format!("Failed to serialize history: {e}"))?;
+
+    fs::write(path, json).map_err(|e| format!("Failed to write history: {e}"))?;
+
+    Ok(())
+}
+
+fn approx_equal(a: Option<f64>, b: Option<f64>) -> bool {
+    match (a, b) {
+        (Some(left), Some(right)) => (left - right).abs() < 0.0001,
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+fn snapshots_are_equivalent(a: &BatterySnapshot, b: &BatterySnapshot) -> bool {
+    approx_equal(a.health_percent, b.health_percent)
+        && approx_equal(a.wear_percent, b.wear_percent)
+        && a.full_charge_capacity_m_wh == b.full_charge_capacity_m_wh
+        && a.design_capacity_m_wh == b.design_capacity_m_wh
+        && a.cycle_count == b.cycle_count
 }
 
 #[tauri::command]
@@ -50,48 +98,32 @@ fn get_battery_report_html() -> Result<String, String> {
 #[tauri::command]
 fn load_battery_history() -> Result<Vec<BatterySnapshot>, String> {
     let path = history_file_path()?;
-
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-
-    let contents =
-        fs::read_to_string(&path).map_err(|e| format!("Failed to read history: {e}"))?;
-
-    if contents.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-
-    serde_json::from_str(&contents)
-        .map_err(|e| format!("Failed to parse history JSON: {e}"))
+    read_history_from_disk(&path)
 }
 
 #[tauri::command]
-fn save_battery_snapshot(snapshot: BatterySnapshot) -> Result<(), String> {
+fn save_battery_snapshot(snapshot: BatterySnapshot) -> Result<SaveSnapshotResult, String> {
     let path = history_file_path()?;
+    let mut history = read_history_from_disk(&path)?;
 
-    let mut history = if path.exists() {
-        let contents = fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read history for update: {e}"))?;
-
-        if contents.trim().is_empty() {
-            Vec::new()
-        } else {
-            serde_json::from_str::<Vec<BatterySnapshot>>(&contents)
-                .map_err(|e| format!("Failed to parse history for update: {e}"))?
+    if let Some(latest) = history.last() {
+        if snapshots_are_equivalent(latest, &snapshot) {
+            return Ok(SaveSnapshotResult {
+                saved: false,
+                reason: "duplicate_snapshot".to_string(),
+                snapshot_count: history.len(),
+            });
         }
-    } else {
-        Vec::new()
-    };
+    }
 
     history.push(snapshot);
+    write_history_to_disk(&path, &history)?;
 
-    let json = serde_json::to_string_pretty(&history)
-        .map_err(|e| format!("Failed to serialize history: {e}"))?;
-
-    fs::write(&path, json).map_err(|e| format!("Failed to write history: {e}"))?;
-
-    Ok(())
+    Ok(SaveSnapshotResult {
+        saved: true,
+        reason: "saved".to_string(),
+        snapshot_count: history.len(),
+    })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

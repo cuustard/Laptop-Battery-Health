@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 
 import type { BatteryReport } from "./types/battery";
@@ -22,11 +22,19 @@ import { RecentUsageChart } from "./components/charts/RecentUsageChart";
 import { InsightsPanel } from "./components/insights/InsightsPanel";
 import { invoke } from "@tauri-apps/api/core";
 
+type SaveSnapshotResult = {
+    saved: boolean;
+    reason: string;
+    snapshotCount: number;
+};
+
 function App() {
     const [data, setData] = useState<BatteryReport | null>(null);
     const [history, setHistory] = useState<BatterySnapshot[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+
+    const hasAutoLoadedRef = useRef(false);
 
     async function refreshHistory() {
         try {
@@ -39,11 +47,9 @@ function App() {
         }
     }
 
-    useEffect(() => {
-        void refreshHistory();
-    }, []);
+    async function loadBatteryReport(options?: { silent?: boolean }) {
+        const silent = options?.silent ?? false;
 
-    async function loadTest() {
         setError(null);
         setIsLoading(true);
 
@@ -55,17 +61,30 @@ function App() {
 
             const snapshot = createSnapshot(parsed);
             if (snapshot) {
-                await invoke("save_battery_snapshot", { snapshot });
-                await refreshHistory();
+                await invoke<SaveSnapshotResult>("save_battery_snapshot", {
+                    snapshot,
+                });
             }
+
+            await refreshHistory();
         } catch (err) {
             console.error(err);
             setData(null);
-            setError(err instanceof Error ? err.message : String(err));
+
+            if (!silent) {
+                setError(err instanceof Error ? err.message : String(err));
+            }
         } finally {
             setIsLoading(false);
         }
     }
+
+    useEffect(() => {
+        if (hasAutoLoadedRef.current) return;
+        hasAutoLoadedRef.current = true;
+
+        void loadBatteryReport({ silent: false });
+    }, []);
 
     const battery = data?.batteries[0];
     const healthPercent = calculateHealthPercent(
@@ -107,7 +126,7 @@ function App() {
 
                     <button
                         className="app-button"
-                        onClick={loadTest}
+                        onClick={() => void loadBatteryReport()}
                         disabled={isLoading}
                     >
                         {isLoading ? "Loading..." : "Load Battery Report"}
@@ -240,8 +259,8 @@ function App() {
                                 </div>
                             ) : (
                                 <p className="app-empty-state">
-                                    Load at least two reports on this device to
-                                    see change over time.
+                                    Load at least two distinct reports on this
+                                    device to see change over time.
                                 </p>
                             )}
                         </SectionCard>

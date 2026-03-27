@@ -5,6 +5,17 @@ import type {
 } from "../types/history";
 import { calculateHealthPercent, calculateWearPercent } from "./batteryMetrics";
 
+function resolveCapturedAt(reportTime?: string): string {
+    if (typeof reportTime === "string" && reportTime.trim() !== "") {
+        const parsed = new Date(reportTime);
+        if (Number.isFinite(parsed.getTime())) {
+            return parsed.toISOString();
+        }
+    }
+
+    return new Date().toISOString();
+}
+
 export function createSnapshot(data: BatteryReport): BatterySnapshot | null {
     const battery = data.batteries[0];
     if (!battery) return null;
@@ -20,7 +31,7 @@ export function createSnapshot(data: BatteryReport): BatterySnapshot | null {
     );
 
     return {
-        capturedAt: new Date().toISOString(),
+        capturedAt: resolveCapturedAt(data.metadata.reportTime),
         healthPercent,
         wearPercent,
         fullChargeCapacity_mWh: battery.fullChargeCapacity_mWh ?? null,
