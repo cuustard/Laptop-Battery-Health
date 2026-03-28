@@ -23,13 +23,18 @@ export function getCapacityTrend(
     return ((last - first) / first) * 100;
 }
 
-function getCapacityTrendInsight(trend: number): Insight {
+function getCapacityTrendInsight(trend: number, pointCount: number): Insight {
+    const historyQualifier =
+        pointCount >= 6
+            ? "across the recorded history"
+            : "across a limited amount of recorded history";
+
     if (trend >= -2) {
         return {
             title: "Capacity trend looks stable",
             description: `Full charge capacity changed by ${trend.toFixed(
                 1
-            )}% across the recorded history, which suggests little sign of accelerated long-term degradation.`,
+            )}% ${historyQualifier}, which suggests little sign of accelerated long-term degradation.`,
             severity: "good",
         };
     }
@@ -39,7 +44,7 @@ function getCapacityTrendInsight(trend: number): Insight {
             title: "Capacity trend shows mild decline",
             description: `Full charge capacity changed by ${trend.toFixed(
                 1
-            )}% across the recorded history, which suggests gradual wear over time.`,
+            )}% ${historyQualifier}, which suggests gradual wear over time.`,
             severity: "neutral",
         };
     }
@@ -49,7 +54,7 @@ function getCapacityTrendInsight(trend: number): Insight {
             title: "Capacity decline is becoming more noticeable",
             description: `Full charge capacity changed by ${trend.toFixed(
                 1
-            )}% across the recorded history, which suggests moderate long-term wear.`,
+            )}% ${historyQualifier}, which suggests moderate long-term wear.`,
             severity: "warning",
         };
     }
@@ -58,7 +63,7 @@ function getCapacityTrendInsight(trend: number): Insight {
         title: "Capacity decline looks steep",
         description: `Full charge capacity changed by ${trend.toFixed(
             1
-        )}% across the recorded history, which suggests faster-than-ideal long-term degradation if this report covers a meaningful period.`,
+        )}% ${historyQualifier}. If this report covers a meaningful period, that suggests faster-than-ideal long-term degradation.`,
         severity: "warning",
     };
 }
@@ -160,7 +165,9 @@ export function generateInsights(data: BatteryReport): Insight[] {
     }
 
     if (trend !== null) {
-        insights.push(getCapacityTrendInsight(trend));
+        insights.push(
+            getCapacityTrendInsight(trend, data.capacityHistory.length)
+        );
     }
 
     if (drain.averagePercentPerHour !== null) {
@@ -199,7 +206,6 @@ export function generateInsights(data: BatteryReport): Insight[] {
         });
     }
 
-    // Combined insight: cycle count vs health
     if (health !== null && cycleCount !== null) {
         if (cycleCount < 200 && health < 75) {
             insights.push({
@@ -218,7 +224,6 @@ export function generateInsights(data: BatteryReport): Insight[] {
         }
     }
 
-    // Combined insight: health + drain rate
     if (health !== null && drain.averagePercentPerHour !== null) {
         const rate = drain.averagePercentPerHour;
 
@@ -239,7 +244,6 @@ export function generateInsights(data: BatteryReport): Insight[] {
         }
     }
 
-    // Combined insight: health + trend
     if (health !== null && trend !== null) {
         if (health < 75 && trend <= -8) {
             insights.push({

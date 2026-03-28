@@ -5,6 +5,9 @@ import type {
 } from "../types/history";
 import { calculateHealthPercent, calculateWearPercent } from "./batteryMetrics";
 
+export const MIN_TREND_DAYS = 14;
+export const MIN_TREND_SNAPSHOTS = 3;
+
 export type BatteryDegradationTrend = {
     first: BatterySnapshot | null;
     latest: BatterySnapshot | null;
@@ -19,6 +22,8 @@ export type BatteryDegradationTrend = {
     wearPercentPerMonth: number | null;
     capacityLoss_mWhPerDay: number | null;
     capacityLoss_mWhPerMonth: number | null;
+    isReliable: boolean;
+    reliabilityMessage: string;
 };
 
 function resolveCapturedAt(reportTime?: string): string {
@@ -53,6 +58,46 @@ function safeDaysBetween(start: string, end: string): number | null {
     }
 
     return diffMs / (1000 * 60 * 60 * 24);
+}
+
+function getTrendReliability(
+    snapshotCount: number,
+    daysTracked: number | null
+): { isReliable: boolean; reliabilityMessage: string } {
+    if (snapshotCount < 2) {
+        return {
+            isReliable: false,
+            reliabilityMessage: "Need at least 2 snapshots",
+        };
+    }
+
+    if (snapshotCount < MIN_TREND_SNAPSHOTS) {
+        return {
+            isReliable: false,
+            reliabilityMessage: `Need at least ${MIN_TREND_SNAPSHOTS} snapshots`,
+        };
+    }
+
+    if (daysTracked === null) {
+        return {
+            isReliable: false,
+            reliabilityMessage: "Need more history",
+        };
+    }
+
+    if (daysTracked < MIN_TREND_DAYS) {
+        return {
+            isReliable: false,
+            reliabilityMessage: `Need at least ${MIN_TREND_DAYS} days of history`,
+        };
+    }
+
+    return {
+        isReliable: true,
+        reliabilityMessage: `${Math.round(
+            daysTracked
+        )} days • ${snapshotCount} snapshots`,
+    };
 }
 
 export function createSnapshot(data: BatteryReport): BatterySnapshot | null {
@@ -151,6 +196,8 @@ export function calculateDegradationTrend(
             wearPercentPerMonth: null,
             capacityLoss_mWhPerDay: null,
             capacityLoss_mWhPerMonth: null,
+            isReliable: false,
+            reliabilityMessage: "Need more history",
         };
     }
 
@@ -173,6 +220,8 @@ export function calculateDegradationTrend(
             wearPercentPerMonth: null,
             capacityLoss_mWhPerDay: null,
             capacityLoss_mWhPerMonth: null,
+            isReliable: false,
+            reliabilityMessage: "Need more history",
         };
     }
 
@@ -194,14 +243,29 @@ export function calculateDegradationTrend(
             ? latest.fullChargeCapacity_mWh - first.fullChargeCapacity_mWh
             : null;
 
+    const reliability = getTrendReliability(sorted.length, daysTracked);
+
     const healthPercentPerDay =
-        daysTracked && healthDelta !== null ? healthDelta / daysTracked : null;
+        reliability.isReliable &&
+        daysTracked !== null &&
+        healthDelta !== null &&
+        daysTracked > 0
+            ? healthDelta / daysTracked
+            : null;
 
     const wearPercentPerDay =
-        daysTracked && wearDelta !== null ? wearDelta / daysTracked : null;
+        reliability.isReliable &&
+        daysTracked !== null &&
+        wearDelta !== null &&
+        daysTracked > 0
+            ? wearDelta / daysTracked
+            : null;
 
     const capacityLoss_mWhPerDay =
-        daysTracked && fullChargeDelta_mWh !== null
+        reliability.isReliable &&
+        daysTracked !== null &&
+        fullChargeDelta_mWh !== null &&
+        daysTracked > 0
             ? -fullChargeDelta_mWh / daysTracked
             : null;
 
@@ -224,6 +288,8 @@ export function calculateDegradationTrend(
             capacityLoss_mWhPerDay !== null
                 ? capacityLoss_mWhPerDay * 30
                 : null,
+        isReliable: reliability.isReliable,
+        reliabilityMessage: reliability.reliabilityMessage,
     };
 }
 

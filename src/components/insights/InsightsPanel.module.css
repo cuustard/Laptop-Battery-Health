@@ -7,6 +7,8 @@
     border: 1px solid transparent;
     border-radius: 14px;
     padding: 16px 18px;
+    background: var(--insight-neutral-bg);
+    border-color: var(--insight-neutral-border);
 }
 
 .title {
@@ -14,9 +16,11 @@
     font-weight: 700;
     margin-bottom: 6px;
     line-height: 1.4;
+    color: var(--insight-neutral-title);
 }
 
 .description {
     font-size: 14px;
     line-height: 1.7;
+    color: var(--insight-neutral-text);
 }
