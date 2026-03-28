@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
     ResponsiveContainer,
     LineChart,
@@ -26,6 +26,48 @@ type CapacityHistoryChartProps = {
     data: CapacityHistoryEntry[];
 };
 
+type ChartTheme = {
+    grid: string;
+    axis: string;
+    line: string;
+    reference: string;
+    tooltipBackground: string;
+    tooltipBorder: string;
+    tooltipText: string;
+    tooltipMuted: string;
+};
+
+function getChartTheme(): ChartTheme {
+    if (typeof window === "undefined") {
+        return {
+            grid: "#eaecf0",
+            axis: "#475467",
+            line: "#3b82f6",
+            reference: "#94a3b8",
+            tooltipBackground: "#ffffff",
+            tooltipBorder: "#d0d5dd",
+            tooltipText: "#101828",
+            tooltipMuted: "#475467",
+        };
+    }
+
+    const root = getComputedStyle(document.documentElement);
+
+    const read = (name: string, fallback: string) =>
+        root.getPropertyValue(name).trim() || fallback;
+
+    return {
+        grid: read("--chart-grid", "#eaecf0"),
+        axis: read("--chart-axis", "#475467"),
+        line: read("--chart-line", "#3b82f6"),
+        reference: read("--chart-reference", "#94a3b8"),
+        tooltipBackground: read("--surface-elevated", "#ffffff"),
+        tooltipBorder: read("--border-strong", "#d0d5dd"),
+        tooltipText: read("--text-primary", "#101828"),
+        tooltipMuted: read("--text-secondary", "#475467"),
+    };
+}
+
 function formatChartDate(dateString: string): string {
     const date = new Date(dateString);
     if (Number.isNaN(date.getTime())) return dateString;
@@ -39,6 +81,8 @@ function formatChartDate(dateString: string): string {
 
 export function CapacityHistoryChart({ data }: CapacityHistoryChartProps) {
     const [mode, setMode] = useState<ChartMode>("health");
+
+    const chartTheme = useMemo(() => getChartTheme(), []);
 
     if (data.length === 0) {
         return (
@@ -157,7 +201,10 @@ export function CapacityHistoryChart({ data }: CapacityHistoryChartProps) {
                         data={currentData}
                         margin={{ top: 8, right: 16, left: 8, bottom: 48 }}
                     >
-                        <CartesianGrid stroke="#eaecf0" />
+                        <CartesianGrid
+                            stroke={chartTheme.grid}
+                            strokeOpacity={0.55}
+                        />
                         <XAxis
                             dataKey="shortDate"
                             interval="preserveStartEnd"
@@ -165,7 +212,9 @@ export function CapacityHistoryChart({ data }: CapacityHistoryChartProps) {
                             angle={-30}
                             textAnchor="end"
                             height={60}
-                            tick={{ fontSize: 12, fill: "#475467" }}
+                            tick={{ fontSize: 12, fill: chartTheme.axis }}
+                            axisLine={{ stroke: chartTheme.grid }}
+                            tickLine={{ stroke: chartTheme.grid }}
                         />
 
                         {mode === "health" ? (
@@ -183,7 +232,9 @@ export function CapacityHistoryChart({ data }: CapacityHistoryChartProps) {
                                 tickFormatter={(value: number) =>
                                     `${value.toFixed(0)}%`
                                 }
-                                tick={{ fontSize: 12, fill: "#475467" }}
+                                tick={{ fontSize: 12, fill: chartTheme.axis }}
+                                axisLine={{ stroke: chartTheme.grid }}
+                                tickLine={{ stroke: chartTheme.grid }}
                                 width={80}
                                 allowDecimals={false}
                             />
@@ -193,7 +244,9 @@ export function CapacityHistoryChart({ data }: CapacityHistoryChartProps) {
                                 tickFormatter={(value: number) =>
                                     `${Math.round(value).toLocaleString()}`
                                 }
-                                tick={{ fontSize: 12, fill: "#475467" }}
+                                tick={{ fontSize: 12, fill: chartTheme.axis }}
+                                axisLine={{ stroke: chartTheme.grid }}
+                                tickLine={{ stroke: chartTheme.grid }}
                                 width={90}
                             />
                         ) : (
@@ -205,12 +258,31 @@ export function CapacityHistoryChart({ data }: CapacityHistoryChartProps) {
                                 tickFormatter={(value: number) =>
                                     `${Math.round(value).toLocaleString()}`
                                 }
-                                tick={{ fontSize: 12, fill: "#475467" }}
+                                tick={{ fontSize: 12, fill: chartTheme.axis }}
+                                axisLine={{ stroke: chartTheme.grid }}
+                                tickLine={{ stroke: chartTheme.grid }}
                                 width={90}
                             />
                         )}
 
                         <Tooltip
+                            contentStyle={{
+                                background: chartTheme.tooltipBackground,
+                                border: `1px solid ${chartTheme.tooltipBorder}`,
+                                borderRadius: 12,
+                                color: chartTheme.tooltipText,
+                                boxShadow: "0 10px 30px rgba(0, 0, 0, 0.18)",
+                            }}
+                            itemStyle={{ color: chartTheme.tooltipText }}
+                            labelStyle={{
+                                color: chartTheme.tooltipText,
+                                fontWeight: 700,
+                                marginBottom: 6,
+                            }}
+                            cursor={{
+                                stroke: chartTheme.grid,
+                                strokeOpacity: 0.45,
+                            }}
                             labelFormatter={(label) => `Date: ${String(label)}`}
                             formatter={(
                                 value: ValueType | undefined,
@@ -241,8 +313,15 @@ export function CapacityHistoryChart({ data }: CapacityHistoryChartProps) {
                                 type="monotone"
                                 dataKey="healthPercent"
                                 name="Battery health"
-                                strokeWidth={2}
+                                stroke={chartTheme.line}
+                                strokeWidth={2.5}
                                 dot={false}
+                                activeDot={{
+                                    r: 5,
+                                    stroke: chartTheme.tooltipBackground,
+                                    strokeWidth: 2,
+                                    fill: chartTheme.line,
+                                }}
                                 isAnimationActive={false}
                                 connectNulls={false}
                             />
@@ -252,8 +331,15 @@ export function CapacityHistoryChart({ data }: CapacityHistoryChartProps) {
                                     type="monotone"
                                     dataKey="fullChargeCapacity_mWh"
                                     name="Full charge capacity"
-                                    strokeWidth={2}
+                                    stroke={chartTheme.line}
+                                    strokeWidth={2.5}
                                     dot={false}
+                                    activeDot={{
+                                        r: 5,
+                                        stroke: chartTheme.tooltipBackground,
+                                        strokeWidth: 2,
+                                        fill: chartTheme.line,
+                                    }}
                                     isAnimationActive={false}
                                     connectNulls={false}
                                 />
@@ -261,8 +347,15 @@ export function CapacityHistoryChart({ data }: CapacityHistoryChartProps) {
                                     type="monotone"
                                     dataKey="designCapacity_mWh"
                                     name="Design capacity"
+                                    stroke={chartTheme.reference}
                                     strokeWidth={2}
                                     dot={false}
+                                    activeDot={{
+                                        r: 5,
+                                        stroke: chartTheme.tooltipBackground,
+                                        strokeWidth: 2,
+                                        fill: chartTheme.reference,
+                                    }}
                                     isAnimationActive={false}
                                     connectNulls={false}
                                 />
