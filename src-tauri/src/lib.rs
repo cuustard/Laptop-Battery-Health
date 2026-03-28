@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
+use std::os::windows::process::CommandExt;
 use std::{env, fs, path::PathBuf, process::Command};
+
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -94,6 +97,7 @@ fn get_battery_report_html() -> Result<String, String> {
     let output_path = env::temp_dir().join("battery-report.html");
 
     let status = Command::new("powercfg")
+        .creation_flags(CREATE_NO_WINDOW)
         .args([
             "/batteryreport",
             "/output",
