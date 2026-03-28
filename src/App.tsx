@@ -12,7 +12,12 @@ import {
 } from "./lib/batteryMetrics";
 import { generateInsights } from "./lib/batteryInsights";
 import { formatMWh, formatPercent } from "./lib/formatters";
-import { compareHistory, createSnapshot, formatDelta } from "./lib/history";
+import {
+    calculateDegradationTrend,
+    compareHistory,
+    createSnapshot,
+    formatDelta,
+} from "./lib/history";
 
 import { StatCard } from "./components/ui/StatCard";
 import { SectionCard } from "./components/ui/SectionCard";
@@ -27,6 +32,49 @@ type SaveSnapshotResult = {
     reason: string;
     snapshotCount: number;
 };
+
+function formatRate(
+    value: number | null,
+    suffix: string,
+    decimals = 2,
+    invertSign = false
+): string {
+    if (value === null || !Number.isFinite(value)) {
+        return "N/A";
+    }
+
+    const displayed = invertSign ? -value : value;
+    return `${displayed.toFixed(decimals)}${suffix}`;
+}
+
+function getDegradationHelper(
+    ratePerMonth: number | null,
+    daysTracked: number | null,
+    snapshotCount: number
+): string {
+    if (
+        ratePerMonth === null ||
+        !Number.isFinite(ratePerMonth) ||
+        daysTracked === null
+    ) {
+        return "Need more history";
+    }
+
+    const magnitude = Math.abs(ratePerMonth);
+
+    let label = "Stable";
+    if (magnitude >= 1.5) {
+        label = "Faster decline";
+    } else if (magnitude >= 0.5) {
+        label = "Moderate decline";
+    } else if (magnitude > 0.05) {
+        label = "Slow decline";
+    }
+
+    return `${label} • ${Math.round(
+        daysTracked
+    )} days • ${snapshotCount} snapshots`;
+}
 
 function App() {
     const [data, setData] = useState<BatteryReport | null>(null);
@@ -111,6 +159,10 @@ function App() {
         );
 
     const comparison = useMemo(() => compareHistory(history), [history]);
+    const degradationTrend = useMemo(
+        () => calculateDegradationTrend(history),
+        [history]
+    );
 
     return (
         <div className="app-shell">
@@ -195,6 +247,18 @@ function App() {
                                     )}`}
                                 />
                                 <StatCard
+                                    label="Degradation rate"
+                                    value={formatRate(
+                                        degradationTrend.healthPercentPerMonth,
+                                        "% / month"
+                                    )}
+                                    helper={getDegradationHelper(
+                                        degradationTrend.healthPercentPerMonth,
+                                        degradationTrend.daysTracked,
+                                        degradationTrend.snapshotCount
+                                    )}
+                                />
+                                <StatCard
                                     label="Cycle count"
                                     value={
                                         battery.cycleCount !== undefined &&
@@ -237,6 +301,13 @@ function App() {
                                                 "%"
                                             )}
                                         />
+                                        <InfoRow
+                                            label="Health trend"
+                                            value={formatRate(
+                                                degradationTrend.healthPercentPerMonth,
+                                                "% / month"
+                                            )}
+                                        />
                                     </div>
                                     <div>
                                         <InfoRow
@@ -252,6 +323,14 @@ function App() {
                                             value={formatDelta(
                                                 comparison.cycleCountDelta,
                                                 "",
+                                                0
+                                            )}
+                                        />
+                                        <InfoRow
+                                            label="Capacity loss rate"
+                                            value={formatRate(
+                                                degradationTrend.capacityLoss_mWhPerDay,
+                                                " mWh / day",
                                                 0
                                             )}
                                         />
