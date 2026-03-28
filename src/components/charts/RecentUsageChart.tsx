@@ -187,12 +187,25 @@ function formatRecentUsageDate(timestamp: string): string {
     const date = new Date(timestamp);
     if (Number.isNaN(date.getTime())) return timestamp;
 
-    return date.toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
+    const day = date.getDate();
+    const month = date.toLocaleString(undefined, { month: "short" });
+
+    const time = date.toLocaleTimeString(undefined, {
         hour: "2-digit",
         minute: "2-digit",
+        hour12: true,
     });
+
+    const suffix =
+        day % 10 === 1 && day !== 11
+            ? "st"
+            : day % 10 === 2 && day !== 12
+            ? "nd"
+            : day % 10 === 3 && day !== 13
+            ? "rd"
+            : "th";
+
+    return `${day}${suffix} ${month}, ${time}`;
 }
 
 function getRecentUsageChartData(entries: RecentUsageEntry[]) {
