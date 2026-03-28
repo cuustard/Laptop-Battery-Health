@@ -264,29 +264,3 @@ export function generateInsights(data: BatteryReport): Insight[] {
 
     return insights;
 }
-
-export function getInsightColors(severity: Insight["severity"]) {
-    switch (severity) {
-        case "good":
-            return {
-                background: "#ecfdf3",
-                border: "#abefc6",
-                title: "#067647",
-                text: "#085d3a",
-            };
-        case "warning":
-            return {
-                background: "#fffaeb",
-                border: "#fedf89",
-                title: "#b54708",
-                text: "#93370d",
-            };
-        default:
-            return {
-                background: "#f8f9fc",
-                border: "#d0d5dd",
-                title: "#344054",
-                text: "#475467",
-            };
-    }
-}

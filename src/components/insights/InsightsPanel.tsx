@@ -1,35 +1,67 @@
-import { getInsightColors } from "../../lib/batteryInsights";
 import type { Insight } from "../../types/battery";
 import styles from "./InsightsPanel.module.css";
 
 type InsightsPanelProps = {
-  insights: Insight[];
+    insights: Insight[];
 };
 
-export function InsightsPanel({ insights }: InsightsPanelProps) {
-  return (
-    <div className={styles.grid}>
-      {insights.map((insight, index) => {
-        const colors = getInsightColors(insight.severity);
+function getSeverityClassName(
+    severity: Insight["severity"],
+    type: "card" | "title" | "description"
+): string {
+    switch (severity) {
+        case "good":
+            return type === "card"
+                ? styles.good
+                : type === "title"
+                ? styles.titleGood
+                : styles.descriptionGood;
+        case "warning":
+            return type === "card"
+                ? styles.warning
+                : type === "title"
+                ? styles.titleWarning
+                : styles.descriptionWarning;
+        default:
+            return type === "card"
+                ? styles.neutral
+                : type === "title"
+                ? styles.titleNeutral
+                : styles.descriptionNeutral;
+    }
+}
 
-        return (
-          <div
-            key={`${insight.title}-${index}`}
-            className={styles.card}
-            style={{
-              background: colors.background,
-              borderColor: colors.border,
-            }}
-          >
-            <div className={styles.title} style={{ color: colors.title }}>
-              {insight.title}
-            </div>
-            <div className={styles.description} style={{ color: colors.text }}>
-              {insight.description}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+export function InsightsPanel({ insights }: InsightsPanelProps) {
+    return (
+        <div className={styles.grid}>
+            {insights.map((insight, index) => (
+                <div
+                    key={`${insight.title}-${index}`}
+                    className={`${styles.card} ${getSeverityClassName(
+                        insight.severity,
+                        "card"
+                    )}`}
+                >
+                    <div
+                        className={`${styles.title} ${getSeverityClassName(
+                            insight.severity,
+                            "title"
+                        )}`}
+                    >
+                        {insight.title}
+                    </div>
+                    <div
+                        className={`${
+                            styles.description
+                        } ${getSeverityClassName(
+                            insight.severity,
+                            "description"
+                        )}`}
+                    >
+                        {insight.description}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
 }

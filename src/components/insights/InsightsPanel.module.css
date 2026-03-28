@@ -7,6 +7,19 @@
     border: 1px solid transparent;
     border-radius: 14px;
     padding: 16px 18px;
+}
+
+.good {
+    background: var(--insight-good-bg);
+    border-color: var(--insight-good-border);
+}
+
+.warning {
+    background: var(--insight-warning-bg);
+    border-color: var(--insight-warning-border);
+}
+
+.neutral {
     background: var(--insight-neutral-bg);
     border-color: var(--insight-neutral-border);
 }
@@ -16,11 +29,33 @@
     font-weight: 700;
     margin-bottom: 6px;
     line-height: 1.4;
+}
+
+.titleGood {
+    color: var(--insight-good-title);
+}
+
+.titleWarning {
+    color: var(--insight-warning-title);
+}
+
+.titleNeutral {
     color: var(--insight-neutral-title);
 }
 
 .description {
     font-size: 14px;
     line-height: 1.7;
+}
+
+.descriptionGood {
+    color: var(--insight-good-text);
+}
+
+.descriptionWarning {
+    color: var(--insight-warning-text);
+}
+
+.descriptionNeutral {
     color: var(--insight-neutral-text);
 }
