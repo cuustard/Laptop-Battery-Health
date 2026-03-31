@@ -8,7 +8,11 @@
         "build": "tsc -b && vite build",
         "lint": "eslint .",
         "preview": "vite preview",
-        "tauri": "tauri"
+        "tauri": "tauri",
+        "tauri:dev": "tauri dev",
+        "build:arm64": "tauri build --target aarch64-pc-windows-msvc",
+        "build:x64": "tauri build --target x86_64-pc-windows-msvc",
+        "build:all": "npm run build:arm64 && npm run build:x64"
     },
     "dependencies": {
         "@tauri-apps/api": "^2.10.1",
