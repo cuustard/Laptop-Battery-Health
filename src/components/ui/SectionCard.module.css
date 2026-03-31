@@ -13,7 +13,7 @@
 
 .title {
     margin: 0;
-    font-size: 22px;
+    font-size: var(--font-size-section-title);
     line-height: 1.2;
     font-weight: 700;
     color: var(--text-primary);
@@ -22,7 +22,7 @@
 
 .description {
     margin: 8px 0 0;
-    font-size: 14px;
+    font-size: var(--font-size-caption);
     color: var(--text-tertiary);
     line-height: 1.6;
 }

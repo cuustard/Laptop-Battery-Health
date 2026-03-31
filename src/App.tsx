@@ -53,6 +53,11 @@ type AppPreferences = {
     minHoursBetweenSnapshots: number;
 };
 
+type TrackingSettings = Pick<
+    AppPreferences,
+    "autoSaveOnLoad" | "onlySaveWhenChanged" | "minHoursBetweenSnapshots"
+>;
+
 type DesktopSettings = {
     launchOnStartup: boolean;
     minimizeToTrayOnClose: boolean;
@@ -82,6 +87,15 @@ const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
     batteryHealthAlertsEnabled: false,
     batteryHealthThresholdPercent: 80,
 };
+
+function getTrackingSettings(preferences: AppPreferences): TrackingSettings {
+    return {
+        autoSaveOnLoad: preferences.autoSaveOnLoad,
+        onlySaveWhenChanged: preferences.onlySaveWhenChanged,
+        minHoursBetweenSnapshots: preferences.minHoursBetweenSnapshots,
+    };
+}
+
 
 function loadPreferences(): AppPreferences {
     try {
@@ -152,15 +166,99 @@ function formatDateForFilename(date = new Date()): string {
     return date.toISOString().replace(/[:.]/g, "-");
 }
 
-function formatDateTime(value: string | null | undefined): string {
-    if (!value) return "N/A";
+function getOrdinalDay(day: number): string {
+    const mod100 = day % 100;
+    if (mod100 >= 11 && mod100 <= 13) {
+        return `${day}th`;
+    }
+
+    switch (day % 10) {
+        case 1:
+            return `${day}st`;
+        case 2:
+            return `${day}nd`;
+        case 3:
+            return `${day}rd`;
+        default:
+            return `${day}th`;
+    }
+}
+
+function parseDateValue(value: string | null | undefined): Date | null {
+    if (!value) return null;
 
     const parsed = new Date(value);
-    if (!Number.isFinite(parsed.getTime())) {
+    if (Number.isFinite(parsed.getTime())) {
+        return parsed;
+    }
+
+    const normalised = value.replace(" ", "T");
+    const fallback = new Date(normalised);
+
+    return Number.isFinite(fallback.getTime()) ? fallback : null;
+}
+
+function formatRelativeTimeFromNow(value: string | null | undefined): string | null {
+    const parsed = parseDateValue(value);
+    if (!parsed) return null;
+
+    const diffMs = Date.now() - parsed.getTime();
+    if (!Number.isFinite(diffMs)) return null;
+
+    if (diffMs < 60_000) {
+        return "just now";
+    }
+
+    if (diffMs < 0) {
+        return "in the future";
+    }
+
+    const totalMinutes = Math.floor(diffMs / 60_000);
+    const totalHours = Math.floor(diffMs / 3_600_000);
+    const totalDays = Math.floor(diffMs / 86_400_000);
+
+    if (totalHours < 1) {
+        return `${totalMinutes} minute${totalMinutes === 1 ? "" : "s"} ago`;
+    }
+
+    if (totalDays < 1) {
+        return `${totalHours} hour${totalHours === 1 ? "" : "s"} ago`;
+    }
+
+    if (totalDays < 7) {
+        const remainingHours = totalHours % 24;
+        if (remainingHours === 0) {
+            return `${totalDays} day${totalDays === 1 ? "" : "s"} ago`;
+        }
+
+        return `${totalDays} day${totalDays === 1 ? "" : "s"} and ${remainingHours} hour${remainingHours === 1 ? "" : "s"} ago`;
+    }
+
+    return `${totalDays} day${totalDays === 1 ? "" : "s"} ago`;
+}
+
+function formatDateTime(value: string | null | undefined, options?: { includeRelative?: boolean }): string {
+    if (!value) return "N/A";
+
+    const parsed = parseDateValue(value);
+    if (!parsed) {
         return value;
     }
 
-    return parsed.toLocaleString();
+    const formatted = `${getOrdinalDay(parsed.getDate())} ${parsed.toLocaleString(undefined, {
+        month: "long",
+    })} ${parsed.getFullYear()} at ${parsed.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    })}`;
+
+    if (options?.includeRelative === false) {
+        return formatted;
+    }
+
+    const relative = formatRelativeTimeFromNow(value);
+    return relative ? `${formatted} (${relative})` : formatted;
 }
 
 function formatTrendValue(
@@ -182,9 +280,9 @@ function formatSnapshotSaveReason(reason: string): string {
         case "saved":
             return "Snapshot saved.";
         case "duplicate_snapshot":
-            return "Snapshot skipped because nothing changed.";
+            return "No changes detected — snapshot not saved.";
         case "min_interval_not_reached":
-            return "Snapshot skipped because the minimum save interval has not passed yet.";
+            return "Snapshot not saved yet — the minimum save interval has not passed.";
         case "history_empty":
             return "No prior history found. First snapshot saved.";
         default:
@@ -214,7 +312,13 @@ function App() {
     const [view, setView] = useState<ViewMode>("dashboard");
     const [preferences, setPreferences] =
         useState<AppPreferences>(loadPreferences);
+    const [trackingDraft, setTrackingDraft] = useState<TrackingSettings>(() =>
+        getTrackingSettings(loadPreferences())
+    );
     const [desktopSettings, setDesktopSettings] = useState<DesktopSettings>(
+        DEFAULT_DESKTOP_SETTINGS
+    );
+    const [desktopDraft, setDesktopDraft] = useState<DesktopSettings>(
         DEFAULT_DESKTOP_SETTINGS
     );
     const [data, setData] = useState<BatteryReport | null>(null);
@@ -223,6 +327,11 @@ function App() {
     const [isLoading, setIsLoading] = useState(false);
     const [isResettingData, setIsResettingData] = useState(false);
     const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+    const [settingsSaveMessage, setSettingsSaveMessage] = useState<string | null>(
+        null
+    );
+    const [isSavingManagedSettings, setIsSavingManagedSettings] =
+        useState(false);
     const [lastSnapshotMessage, setLastSnapshotMessage] = useState<
         string | null
     >(null);
@@ -251,9 +360,10 @@ function App() {
         try {
             const loaded = await invoke<DesktopSettings>("load_desktop_settings");
             setDesktopSettings(loaded);
+            setDesktopDraft(loaded);
         } catch (err) {
             console.error("Failed to load desktop settings", err);
-            setSettingsMessage(
+            setSettingsSaveMessage(
                 err instanceof Error
                     ? err.message
                     : "Failed to load desktop settings."
@@ -262,29 +372,57 @@ function App() {
     }
 
     async function persistDesktopSettings(next: DesktopSettings) {
+        const saved = await invoke<DesktopSettings>("save_desktop_settings", {
+            settings: next,
+        });
+
+        setDesktopSettings(saved);
+        setDesktopDraft(saved);
+        return saved;
+    }
+
+    function updateDesktopDraft(partial: Partial<DesktopSettings>) {
+        setSettingsSaveMessage(null);
+        setDesktopDraft((current) => ({ ...current, ...partial }));
+    }
+
+    function updateTrackingDraft(partial: Partial<TrackingSettings>) {
+        setSettingsSaveMessage(null);
+        setTrackingDraft((current) => ({ ...current, ...partial }));
+    }
+
+    async function handleSaveManagedSettings() {
+        setSettingsSaveMessage(null);
+        setIsSavingManagedSettings(true);
+
         try {
-            const saved = await invoke<DesktopSettings>("save_desktop_settings", {
-                settings: next,
-            });
-            setDesktopSettings(saved);
-            setSettingsMessage("Desktop settings saved.");
+            const nextPreferences = {
+                ...preferences,
+                ...trackingDraft,
+            };
+
+            savePreferences(nextPreferences);
+            setPreferences(nextPreferences);
+
+            await persistDesktopSettings(desktopDraft);
+
+            setSettingsSaveMessage("Tracking and background settings saved.");
         } catch (err) {
             console.error(err);
-            setSettingsMessage(
+            setSettingsSaveMessage(
                 err instanceof Error
                     ? err.message
-                    : "Failed to save desktop settings."
+                    : "Failed to save settings."
             );
+        } finally {
+            setIsSavingManagedSettings(false);
         }
     }
 
-    function updateDesktopSettings(partial: Partial<DesktopSettings>) {
-        setSettingsMessage(null);
-        setDesktopSettings((current) => {
-            const next = { ...current, ...partial };
-            void persistDesktopSettings(next);
-            return next;
-        });
+    function resetManagedSettingsDrafts() {
+        setTrackingDraft(getTrackingSettings(preferences));
+        setDesktopDraft(desktopSettings);
+        setSettingsSaveMessage(null);
     }
 
     async function refreshHistory() {
@@ -415,7 +553,7 @@ function App() {
             "Battery Health Summary",
             "======================",
             "",
-            `Generated: ${new Date().toLocaleString()}`,
+            `Generated: ${formatDateTime(new Date().toISOString(), { includeRelative: false })}`,
             `Snapshots stored: ${history.length}`,
             `Tracking since: ${formatDateTime(
                 degradationTrend.first?.capturedAt ?? null
@@ -544,6 +682,26 @@ function App() {
     const trackingStartedAt = degradationTrend.first?.capturedAt ?? null;
     const lastSnapshotAt = degradationTrend.latest?.capturedAt ?? null;
 
+    const hasPendingSettingsChanges = useMemo(() => {
+        return (
+            trackingDraft.autoSaveOnLoad !== preferences.autoSaveOnLoad ||
+            trackingDraft.onlySaveWhenChanged !== preferences.onlySaveWhenChanged ||
+            trackingDraft.minHoursBetweenSnapshots !==
+                preferences.minHoursBetweenSnapshots ||
+            desktopDraft.launchOnStartup !== desktopSettings.launchOnStartup ||
+            desktopDraft.minimizeToTrayOnClose !==
+                desktopSettings.minimizeToTrayOnClose ||
+            desktopDraft.backgroundChecksEnabled !==
+                desktopSettings.backgroundChecksEnabled ||
+            desktopDraft.backgroundCheckIntervalHours !==
+                desktopSettings.backgroundCheckIntervalHours ||
+            desktopDraft.batteryHealthAlertsEnabled !==
+                desktopSettings.batteryHealthAlertsEnabled ||
+            desktopDraft.batteryHealthThresholdPercent !==
+                desktopSettings.batteryHealthThresholdPercent
+        );
+    }, [desktopDraft, desktopSettings, preferences, trackingDraft]);
+
     return (
         <div className="app-shell">
             <main className="app-main">
@@ -563,6 +721,7 @@ function App() {
                                     className="app-button app-button--secondary"
                                     onClick={() => {
                                         setSettingsMessage(null);
+                                        setSettingsSaveMessage(null);
                                         setView("settings");
                                     }}
                                 >
@@ -707,13 +866,11 @@ function App() {
                                 <label className="settings-toggle">
                                     <input
                                         type="checkbox"
-                                        checked={preferences.autoSaveOnLoad}
+                                        checked={trackingDraft.autoSaveOnLoad}
                                         onChange={(event) =>
-                                            setPreferences((current) => ({
-                                                ...current,
-                                                autoSaveOnLoad:
-                                                    event.target.checked,
-                                            }))
+                                            updateTrackingDraft({
+                                                autoSaveOnLoad: event.target.checked,
+                                            })
                                         }
                                     />
                                     <span>
@@ -730,15 +887,11 @@ function App() {
                                 <label className="settings-toggle">
                                     <input
                                         type="checkbox"
-                                        checked={
-                                            preferences.onlySaveWhenChanged
-                                        }
+                                        checked={trackingDraft.onlySaveWhenChanged}
                                         onChange={(event) =>
-                                            setPreferences((current) => ({
-                                                ...current,
-                                                onlySaveWhenChanged:
-                                                    event.target.checked,
-                                            }))
+                                            updateTrackingDraft({
+                                                onlySaveWhenChanged: event.target.checked,
+                                            })
                                         }
                                     />
                                     <span>
@@ -762,15 +915,11 @@ function App() {
                                     <select
                                         id="interval-select"
                                         className="settings-select"
-                                        value={String(
-                                            preferences.minHoursBetweenSnapshots
-                                        )}
+                                        value={String(trackingDraft.minHoursBetweenSnapshots)}
                                         onChange={(event) =>
-                                            setPreferences((current) => ({
-                                                ...current,
-                                                minHoursBetweenSnapshots:
-                                                    Number(event.target.value),
-                                            }))
+                                            updateTrackingDraft({
+                                                minHoursBetweenSnapshots: Number(event.target.value),
+                                            })
                                         }
                                     >
                                         <option value="0">No minimum</option>
@@ -792,11 +941,10 @@ function App() {
                                 <label className="settings-toggle">
                                     <input
                                         type="checkbox"
-                                        checked={desktopSettings.launchOnStartup}
+                                        checked={desktopDraft.launchOnStartup}
                                         onChange={(event) =>
-                                            updateDesktopSettings({
-                                                launchOnStartup:
-                                                    event.target.checked,
+                                            updateDesktopDraft({
+                                                launchOnStartup: event.target.checked,
                                             })
                                         }
                                     />
@@ -814,13 +962,10 @@ function App() {
                                 <label className="settings-toggle">
                                     <input
                                         type="checkbox"
-                                        checked={
-                                            desktopSettings.minimizeToTrayOnClose
-                                        }
+                                        checked={desktopDraft.minimizeToTrayOnClose}
                                         onChange={(event) =>
-                                            updateDesktopSettings({
-                                                minimizeToTrayOnClose:
-                                                    event.target.checked,
+                                            updateDesktopDraft({
+                                                minimizeToTrayOnClose: event.target.checked,
                                             })
                                         }
                                     />
@@ -839,13 +984,10 @@ function App() {
                                 <label className="settings-toggle">
                                     <input
                                         type="checkbox"
-                                        checked={
-                                            desktopSettings.backgroundChecksEnabled
-                                        }
+                                        checked={desktopDraft.backgroundChecksEnabled}
                                         onChange={(event) =>
-                                            updateDesktopSettings({
-                                                backgroundChecksEnabled:
-                                                    event.target.checked,
+                                            updateDesktopDraft({
+                                                backgroundChecksEnabled: event.target.checked,
                                             })
                                         }
                                     />
@@ -871,13 +1013,10 @@ function App() {
                                     <select
                                         id="background-check-interval"
                                         className="settings-select"
-                                        value={String(
-                                            desktopSettings.backgroundCheckIntervalHours
-                                        )}
+                                        value={String(desktopDraft.backgroundCheckIntervalHours)}
                                         onChange={(event) =>
-                                            updateDesktopSettings({
-                                                backgroundCheckIntervalHours:
-                                                    Number(event.target.value),
+                                            updateDesktopDraft({
+                                                backgroundCheckIntervalHours: Number(event.target.value),
                                             })
                                         }
                                     >
@@ -896,13 +1035,10 @@ function App() {
                                 <label className="settings-toggle">
                                     <input
                                         type="checkbox"
-                                        checked={
-                                            desktopSettings.batteryHealthAlertsEnabled
-                                        }
+                                        checked={desktopDraft.batteryHealthAlertsEnabled}
                                         onChange={(event) =>
-                                            updateDesktopSettings({
-                                                batteryHealthAlertsEnabled:
-                                                    event.target.checked,
+                                            updateDesktopDraft({
+                                                batteryHealthAlertsEnabled: event.target.checked,
                                             })
                                         }
                                     />
@@ -929,13 +1065,10 @@ function App() {
                                     <select
                                         id="battery-health-threshold"
                                         className="settings-select"
-                                        value={String(
-                                            desktopSettings.batteryHealthThresholdPercent
-                                        )}
+                                        value={String(desktopDraft.batteryHealthThresholdPercent)}
                                         onChange={(event) =>
-                                            updateDesktopSettings({
-                                                batteryHealthThresholdPercent:
-                                                    Number(event.target.value),
+                                            updateDesktopDraft({
+                                                batteryHealthThresholdPercent: Number(event.target.value),
                                             })
                                         }
                                     >
@@ -947,6 +1080,57 @@ function App() {
                                     </select>
                                 </label>
                             </div>
+                        </SectionCard>
+
+                        <SectionCard
+                            title="Save settings"
+                            description="Tracking and background changes stay pending until you confirm them."
+                        >
+                            <div className="settings-save-bar">
+                                <div className="settings-save-bar__content">
+                                    <strong>
+                                        {hasPendingSettingsChanges
+                                            ? "You have unsaved changes."
+                                            : "All tracking and background settings are saved."}
+                                    </strong>
+                                    <small>
+                                        Appearance and accessibility settings still save instantly.
+                                    </small>
+                                </div>
+
+                                <div className="settings-save-bar__actions">
+                                    <button
+                                        type="button"
+                                        className="app-button app-button--secondary"
+                                        onClick={resetManagedSettingsDrafts}
+                                        disabled={
+                                            !hasPendingSettingsChanges ||
+                                            isSavingManagedSettings
+                                        }
+                                    >
+                                        Reset
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="app-button"
+                                        onClick={() => void handleSaveManagedSettings()}
+                                        disabled={
+                                            !hasPendingSettingsChanges ||
+                                            isSavingManagedSettings
+                                        }
+                                    >
+                                        {isSavingManagedSettings
+                                            ? "Saving..."
+                                            : "Save changes"}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {settingsSaveMessage && (
+                                <p className="settings-message">
+                                    {settingsSaveMessage}
+                                </p>
+                            )}
                         </SectionCard>
 
                         <SectionCard
@@ -1289,10 +1473,9 @@ function App() {
                                                 />
                                                 <InfoRow
                                                     label="Report time"
-                                                    value={
-                                                        data.metadata
-                                                            .reportTime ?? "N/A"
-                                                    }
+                                                    value={formatDateTime(
+                                                        data.metadata.reportTime
+                                                    )}
                                                 />
                                             </>
                                         ) : (

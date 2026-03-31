@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import {
     ResponsiveContainer,
     LineChart,
@@ -53,7 +52,7 @@ function getChartTheme(): ChartTheme {
 
 export function RecentUsageChart({ data }: RecentUsageChartProps) {
     const chartData = getRecentUsageChartData(data);
-    const chartTheme = useMemo(() => getChartTheme(), []);
+    const chartTheme = getChartTheme();
 
     if (chartData.length === 0) {
         return (

@@ -7,13 +7,13 @@
 }
 
 .label {
-    font-size: 14px;
+    font-size: var(--font-size-label);
     font-weight: 600;
     color: var(--text-secondary);
 }
 
 .value {
-    font-size: 15px;
+    font-size: var(--font-size-body-sm);
     color: var(--text-primary);
     word-break: break-word;
     line-height: 1.6;

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
     ResponsiveContainer,
     LineChart,
@@ -95,7 +95,7 @@ function formatChartDate(dateString: string): string {
 export function CapacityHistoryChart({ data }: CapacityHistoryChartProps) {
     const [mode, setMode] = useState<ChartMode>("health");
 
-    const chartTheme = useMemo(() => getChartTheme(), []);
+    const chartTheme = getChartTheme();
 
     if (data.length === 0) {
         return (

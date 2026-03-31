@@ -318,10 +318,7 @@ fn create_snapshot_from_report_html(html: &str) -> Option<BatterySnapshot> {
     })
 }
 
-fn sync_autostart<R: Runtime>(
-    app: &AppHandle<R>,
-    enabled: bool,
-) -> Result<bool, String> {
+fn sync_autostart<R: Runtime>(app: &AppHandle<R>, enabled: bool) -> Result<bool, String> {
     let manager = app.autolaunch();
 
     if enabled {
@@ -540,7 +537,10 @@ fn save_desktop_settings<R: Runtime>(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            open_main_window(app);
+        }))
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             app.handle().plugin(tauri_plugin_autostart::init(
