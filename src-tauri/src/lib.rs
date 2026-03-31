@@ -537,9 +537,14 @@ fn save_desktop_settings<R: Runtime>(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            open_main_window(app);
+    tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            // When user tries to open another instance
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
         }))
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
@@ -551,7 +556,7 @@ pub fn run() {
             create_tray(app)?;
             start_background_monitor(app.handle().clone());
 
-            if env::args().any(|arg| arg == BACKGROUND_ARG) {
+            if std::env::args().any(|arg| arg == BACKGROUND_ARG) {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.hide();
                 }
