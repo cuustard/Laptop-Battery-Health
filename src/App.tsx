@@ -53,6 +53,15 @@ type AppPreferences = {
     minHoursBetweenSnapshots: number;
 };
 
+type DesktopSettings = {
+    launchOnStartup: boolean;
+    minimizeToTrayOnClose: boolean;
+    backgroundChecksEnabled: boolean;
+    backgroundCheckIntervalHours: number;
+    batteryHealthAlertsEnabled: boolean;
+    batteryHealthThresholdPercent: number;
+};
+
 const PREFERENCES_STORAGE_KEY = "battery-dashboard-preferences";
 
 const DEFAULT_PREFERENCES: AppPreferences = {
@@ -63,6 +72,15 @@ const DEFAULT_PREFERENCES: AppPreferences = {
     autoSaveOnLoad: true,
     onlySaveWhenChanged: true,
     minHoursBetweenSnapshots: 24,
+};
+
+const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
+    launchOnStartup: false,
+    minimizeToTrayOnClose: false,
+    backgroundChecksEnabled: false,
+    backgroundCheckIntervalHours: 24,
+    batteryHealthAlertsEnabled: false,
+    batteryHealthThresholdPercent: 80,
 };
 
 function loadPreferences(): AppPreferences {
@@ -196,6 +214,9 @@ function App() {
     const [view, setView] = useState<ViewMode>("dashboard");
     const [preferences, setPreferences] =
         useState<AppPreferences>(loadPreferences);
+    const [desktopSettings, setDesktopSettings] = useState<DesktopSettings>(
+        DEFAULT_DESKTOP_SETTINGS
+    );
     const [data, setData] = useState<BatteryReport | null>(null);
     const [history, setHistory] = useState<BatterySnapshot[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -221,6 +242,50 @@ function App() {
         document.documentElement.dataset.palette =
             preferences.colorBlindFriendly ? "colorblind" : "default";
     }, [preferences]);
+
+    useEffect(() => {
+        void loadDesktopSettings();
+    }, []);
+
+    async function loadDesktopSettings() {
+        try {
+            const loaded = await invoke<DesktopSettings>("load_desktop_settings");
+            setDesktopSettings(loaded);
+        } catch (err) {
+            console.error("Failed to load desktop settings", err);
+            setSettingsMessage(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to load desktop settings."
+            );
+        }
+    }
+
+    async function persistDesktopSettings(next: DesktopSettings) {
+        try {
+            const saved = await invoke<DesktopSettings>("save_desktop_settings", {
+                settings: next,
+            });
+            setDesktopSettings(saved);
+            setSettingsMessage("Desktop settings saved.");
+        } catch (err) {
+            console.error(err);
+            setSettingsMessage(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to save desktop settings."
+            );
+        }
+    }
+
+    function updateDesktopSettings(partial: Partial<DesktopSettings>) {
+        setSettingsMessage(null);
+        setDesktopSettings((current) => {
+            const next = { ...current, ...partial };
+            void persistDesktopSettings(next);
+            return next;
+        });
+    }
 
     async function refreshHistory() {
         try {
@@ -411,6 +476,22 @@ function App() {
                 " mWh / day",
                 0
             )}`,
+            "",
+            "Background monitoring",
+            "---------------------",
+            `Launch on startup: ${desktopSettings.launchOnStartup ? "Enabled" : "Disabled"}`,
+            `Hide to tray on close: ${
+                desktopSettings.minimizeToTrayOnClose ? "Enabled" : "Disabled"
+            }`,
+            `Background checks: ${
+                desktopSettings.backgroundChecksEnabled ? "Enabled" : "Disabled"
+            }`,
+            `Check frequency: every ${desktopSettings.backgroundCheckIntervalHours} hour(s)`,
+            `Health alerts: ${
+                desktopSettings.batteryHealthAlertsEnabled
+                    ? `Enabled below ${desktopSettings.batteryHealthThresholdPercent}%`
+                    : "Disabled"
+            }`,
         ];
 
         const filename = `battery-summary-${formatDateForFilename()}.txt`;
@@ -580,7 +661,8 @@ function App() {
                                         onChange={(event) =>
                                             setPreferences((current) => ({
                                                 ...current,
-                                                largeText: event.target.checked,
+                                                largeText:
+                                                    event.target.checked,
                                             }))
                                         }
                                     />
@@ -703,6 +785,171 @@ function App() {
                         </SectionCard>
 
                         <SectionCard
+                            title="Background & notifications"
+                            description="Control startup, tray behavior, scheduled checks, and health alerts."
+                        >
+                            <div className="settings-group">
+                                <label className="settings-toggle">
+                                    <input
+                                        type="checkbox"
+                                        checked={desktopSettings.launchOnStartup}
+                                        onChange={(event) =>
+                                            updateDesktopSettings({
+                                                launchOnStartup:
+                                                    event.target.checked,
+                                            })
+                                        }
+                                    />
+                                    <span>
+                                        <strong>
+                                            Launch on Windows startup
+                                        </strong>
+                                        <small>
+                                            Start Battery Dashboard when you log
+                                            in to Windows.
+                                        </small>
+                                    </span>
+                                </label>
+
+                                <label className="settings-toggle">
+                                    <input
+                                        type="checkbox"
+                                        checked={
+                                            desktopSettings.minimizeToTrayOnClose
+                                        }
+                                        onChange={(event) =>
+                                            updateDesktopSettings({
+                                                minimizeToTrayOnClose:
+                                                    event.target.checked,
+                                            })
+                                        }
+                                    />
+                                    <span>
+                                        <strong>
+                                            Hide to tray when X is clicked
+                                        </strong>
+                                        <small>
+                                            Keep the app running in the system
+                                            tray instead of quitting when the
+                                            window is closed.
+                                        </small>
+                                    </span>
+                                </label>
+
+                                <label className="settings-toggle">
+                                    <input
+                                        type="checkbox"
+                                        checked={
+                                            desktopSettings.backgroundChecksEnabled
+                                        }
+                                        onChange={(event) =>
+                                            updateDesktopSettings({
+                                                backgroundChecksEnabled:
+                                                    event.target.checked,
+                                            })
+                                        }
+                                    />
+                                    <span>
+                                        <strong>
+                                            Enable background battery checks
+                                        </strong>
+                                        <small>
+                                            Check battery health on a schedule
+                                            even while the app is hidden in the
+                                            tray.
+                                        </small>
+                                    </span>
+                                </label>
+
+                                <label
+                                    className="settings-field"
+                                    htmlFor="background-check-interval"
+                                >
+                                    <span className="settings-field__label">
+                                        Background check frequency
+                                    </span>
+                                    <select
+                                        id="background-check-interval"
+                                        className="settings-select"
+                                        value={String(
+                                            desktopSettings.backgroundCheckIntervalHours
+                                        )}
+                                        onChange={(event) =>
+                                            updateDesktopSettings({
+                                                backgroundCheckIntervalHours:
+                                                    Number(event.target.value),
+                                            })
+                                        }
+                                    >
+                                        <option value="1">Every 1 hour</option>
+                                        <option value="3">Every 3 hours</option>
+                                        <option value="6">Every 6 hours</option>
+                                        <option value="12">
+                                            Every 12 hours
+                                        </option>
+                                        <option value="24">
+                                            Every 24 hours
+                                        </option>
+                                    </select>
+                                </label>
+
+                                <label className="settings-toggle">
+                                    <input
+                                        type="checkbox"
+                                        checked={
+                                            desktopSettings.batteryHealthAlertsEnabled
+                                        }
+                                        onChange={(event) =>
+                                            updateDesktopSettings({
+                                                batteryHealthAlertsEnabled:
+                                                    event.target.checked,
+                                            })
+                                        }
+                                    />
+                                    <span>
+                                        <strong>
+                                            Notify when battery health drops
+                                            below a threshold
+                                        </strong>
+                                        <small>
+                                            Send a desktop notification once
+                                            when the monitored battery health
+                                            falls below the chosen threshold.
+                                        </small>
+                                    </span>
+                                </label>
+
+                                <label
+                                    className="settings-field"
+                                    htmlFor="battery-health-threshold"
+                                >
+                                    <span className="settings-field__label">
+                                        Health alert threshold
+                                    </span>
+                                    <select
+                                        id="battery-health-threshold"
+                                        className="settings-select"
+                                        value={String(
+                                            desktopSettings.batteryHealthThresholdPercent
+                                        )}
+                                        onChange={(event) =>
+                                            updateDesktopSettings({
+                                                batteryHealthThresholdPercent:
+                                                    Number(event.target.value),
+                                            })
+                                        }
+                                    >
+                                        <option value="95">95%</option>
+                                        <option value="90">90%</option>
+                                        <option value="85">85%</option>
+                                        <option value="80">80%</option>
+                                        <option value="75">75%</option>
+                                    </select>
+                                </label>
+                            </div>
+                        </SectionCard>
+
+                        <SectionCard
                             title="Data & storage"
                             description="Export battery data or remove saved history from this device."
                         >
@@ -774,6 +1021,22 @@ function App() {
                                 <InfoRow
                                     label="Trend reliability rule"
                                     value={`${MIN_TREND_SNAPSHOTS}+ snapshots and ${MIN_TREND_DAYS}+ days`}
+                                />
+                                <InfoRow
+                                    label="Background checks"
+                                    value={
+                                        desktopSettings.backgroundChecksEnabled
+                                            ? `Enabled every ${desktopSettings.backgroundCheckIntervalHours} hour(s)`
+                                            : "Disabled"
+                                    }
+                                />
+                                <InfoRow
+                                    label="Health alerts"
+                                    value={
+                                        desktopSettings.batteryHealthAlertsEnabled
+                                            ? `Enabled below ${desktopSettings.batteryHealthThresholdPercent}%`
+                                            : "Disabled"
+                                    }
                                 />
                                 <InfoRow
                                     label="Accessibility"

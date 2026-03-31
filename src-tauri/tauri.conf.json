@@ -4,34 +4,35 @@
     "version": "0.2.4",
     "identifier": "com.jakeevans.batterydashboard",
     "build": {
-        "frontendDist": "../dist",
-        "devUrl": "http://localhost:5173",
-        "beforeDevCommand": "npm run dev",
-        "beforeBuildCommand": "npm run build"
+      "frontendDist": "../dist",
+      "devUrl": "http://localhost:5173",
+      "beforeDevCommand": "npm run dev",
+      "beforeBuildCommand": "npm run build"
     },
     "app": {
-        "windows": [
-            {
-                "title": "battery-dashboard",
-                "width": 800,
-                "height": 600,
-                "resizable": true,
-                "fullscreen": false
-            }
-        ],
-        "security": {
-            "csp": null
+      "windows": [
+        {
+          "label": "main",
+          "title": "battery-dashboard",
+          "width": 800,
+          "height": 600,
+          "resizable": true,
+          "fullscreen": false
         }
+      ],
+      "security": {
+        "csp": null
+      }
     },
     "bundle": {
-        "active": true,
-        "targets": "all",
-        "icon": [
-            "icons/32x32.png",
-            "icons/128x128.png",
-            "icons/128x128@2x.png",
-            "icons/icon.icns",
-            "icons/icon.ico"
-        ]
+      "active": true,
+      "targets": "all",
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.icns",
+        "icons/icon.ico"
+      ]
     }
-}
+  }
